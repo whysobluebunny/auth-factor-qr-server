@@ -1,11 +1,14 @@
 package ru.mephi.abondarenko.auth.factor.qr.service
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentResponse
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceInfoResponse
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.EnrollmentQrPayload
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.RevokeDeviceRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.RevokeDeviceResponse
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentResponse
 import ru.mephi.abondarenko.auth.factor.qr.api.error.BadRequestException
@@ -21,6 +24,7 @@ import ru.mephi.abondarenko.auth.factor.qr.service.crypto.SecretCryptoService
 import ru.mephi.abondarenko.auth.factor.qr.service.totp.TotpService
 import java.time.Clock
 import java.time.Instant
+import java.util.UUID
 
 @Service
 class EnrollmentService(
@@ -29,10 +33,29 @@ class EnrollmentService(
     private val secretCryptoService: SecretCryptoService,
     private val randomTokenService: RandomTokenService,
     private val totpService: TotpService,
-    private val objectMapper: ObjectMapper,
+    private val objectMapper: JsonMapper,
     private val properties: AuthFactorProperties,
     private val clock: Clock
 ) {
+
+    @Transactional(readOnly = true)
+    fun listDevices(externalUserId: String): List<DeviceInfoResponse> {
+        userService.getByExternalUserId(externalUserId)
+
+        return registeredDeviceRepository.findAllByUserExternalUserIdOrderByCreatedAtDesc(externalUserId)
+            .map { device ->
+                DeviceInfoResponse(
+                    deviceId = device.id,
+                    deviceLabel = device.deviceLabel,
+                    serviceId = device.serviceId,
+                    deviceStatus = device.status,
+                    createdAt = device.createdAt,
+                    confirmedAt = device.confirmedAt,
+                    revokedAt = device.revokedAt,
+                    lastUsedAt = device.lastUsedAt
+                )
+            }
+    }
 
     @Transactional
     fun startEnrollment(request: StartEnrollmentRequest): StartEnrollmentResponse {
@@ -114,6 +137,29 @@ class EnrollmentService(
             deviceId = device.id,
             deviceStatus = device.status,
             confirmedAt = device.confirmedAt!!
+        )
+    }
+
+    @Transactional
+    fun revokeDevice(deviceId: UUID, request: RevokeDeviceRequest): RevokeDeviceResponse {
+        val device = registeredDeviceRepository.findByIdAndUserExternalUserId(deviceId, request.externalUserId)
+            ?: throw NotFoundException("Device $deviceId not found for user ${request.externalUserId}")
+
+        if (device.status == DeviceStatus.REVOKED) {
+            return RevokeDeviceResponse(
+                deviceId = device.id,
+                deviceStatus = device.status,
+                revokedAt = device.revokedAt ?: Instant.now(clock)
+            )
+        }
+
+        device.status = DeviceStatus.REVOKED
+        device.revokedAt = Instant.now(clock)
+
+        return RevokeDeviceResponse(
+            deviceId = device.id,
+            deviceStatus = device.status,
+            revokedAt = device.revokedAt!!
         )
     }
 }

@@ -1,6 +1,6 @@
 package ru.mephi.abondarenko.auth.factor.qr.service
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ChallengeQrPayload
@@ -34,7 +34,7 @@ class AuthSessionService(
     private val randomTokenService: RandomTokenService,
     private val secretCryptoService: SecretCryptoService,
     private val totpService: TotpService,
-    private val objectMapper: ObjectMapper,
+    private val objectMapper: JsonMapper,
     private val properties: AuthFactorProperties,
     private val clock: Clock
 ) {
@@ -90,7 +90,7 @@ class AuthSessionService(
             .orElseThrow { NotFoundException("Auth session ${request.sessionId} not found") }
 
         if (session.status == SessionStatus.APPROVED) {
-            return session.toVerifyResult(approved = true)
+            throw ConflictException("Auth session ${request.sessionId} already approved")
         }
 
         if (session.status == SessionStatus.EXPIRED || session.status == SessionStatus.BLOCKED) {
