@@ -1,0 +1,41 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: auth-factor-qr-server
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/auth_factor_qr
+    username: auth_factor_qr
+    password: auth_factor_qr
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+app:
+  auth-factor:
+    service-id: auth-factor-qr-demo
+    otp-period: 30s
+    otp-digits: 6
+    allowed-clock-skew-steps: 1
+    challenge-ttl: 2m
+    response-max-age: 2m
+    max-verify-attempts: 5
+    master-key-base64: ${AUTH_FACTOR_MASTER_KEY_BASE64:REPLACE_WITH_32_BYTE_BASE64_KEY}
