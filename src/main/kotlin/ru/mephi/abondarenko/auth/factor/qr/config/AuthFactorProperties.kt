@@ -12,5 +12,7 @@ data class AuthFactorProperties(
     var challengeTtl: Duration = Duration.ofMinutes(2),
     var responseMaxAge: Duration = Duration.ofMinutes(2),
     var maxVerifyAttempts: Int = 5,
-    var masterKeyBase64: String = ""
+    var masterKeyBase64: String = "",
+    var apiKeyHeaderName: String = "X-Auth-Factor-Api-Key",
+    var apiKey: String = ""
 )

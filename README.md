@@ -6,13 +6,17 @@
 
 Сервис реализует:
 - регистрацию мобильного устройства пользователя;
+- просмотр устройств пользователя;
+- отзыв зарегистрированного устройства;
 - генерацию enrollment QR;
 - подтверждение регистрации через TOTP;
 - генерацию challenge для второй фазы входа;
 - проверку response QR, сформированного мобильным приложением;
 - привязку ответа к конкретной auth session;
 - ограничение количества попыток;
-- защиту от повторного использования response в рамках сессии.
+- защиту от повторного использования response в рамках сессии;
+- аудит ключевых событий безопасности;
+- защиту API через integration API key.
 
 ## Технологии
 
@@ -50,6 +54,14 @@ openssl rand -base64 32
 
 ```bash
 export AUTH_FACTOR_MASTER_KEY_BASE64='<your_key>'
+```
+
+## Переменная с API key
+
+Сервис требует API key для всех endpoint'ов `/api/**` и защищённых actuator endpoint'ов.
+
+```bash
+export AUTH_FACTOR_API_KEY='<your_api_key>'
 ```
 
 ## Запуск приложения
@@ -122,4 +134,21 @@ export AUTH_FACTOR_MASTER_KEY_BASE64='<your_key>'
 
 `GET /api/v1/auth/sessions/{sessionId}`
 
+### Список устройств пользователя
+
+`GET /api/v1/enrollments/devices?externalUserId=user123`
+
+### Отзыв устройства
+
+`POST /api/v1/enrollments/devices/{deviceId}/revoke`
+
+```json
+{
+  "externalUserId": "user123"
+}
+```
+
+### Просмотр аудита
+
+`GET /api/v1/audit-events?externalUserId=user123&limit=20`
 

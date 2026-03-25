@@ -15,6 +15,8 @@ import ru.mephi.abondarenko.auth.factor.qr.api.error.BadRequestException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.ConflictException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.NotFoundException
 import ru.mephi.abondarenko.auth.factor.qr.config.AuthFactorProperties
+import ru.mephi.abondarenko.auth.factor.qr.domain.AuditEventType
+import ru.mephi.abondarenko.auth.factor.qr.domain.AuditOutcome
 import ru.mephi.abondarenko.auth.factor.qr.domain.DeviceStatus
 import ru.mephi.abondarenko.auth.factor.qr.domain.TotpAlgorithm
 import ru.mephi.abondarenko.auth.factor.qr.entity.RegisteredDevice
@@ -28,6 +30,7 @@ import java.util.UUID
 
 @Service
 class EnrollmentService(
+    private val auditLogService: AuditLogService,
     private val userService: UserService,
     private val registeredDeviceRepository: RegisteredDeviceRepository,
     private val secretCryptoService: SecretCryptoService,
@@ -87,6 +90,14 @@ class EnrollmentService(
             algorithm = device.algorithm.name
         )
 
+        auditLogService.logEvent(
+            eventType = AuditEventType.ENROLLMENT_STARTED,
+            outcome = AuditOutcome.SUCCESS,
+            externalUserId = user.externalUserId,
+            deviceId = device.id,
+            details = "Enrollment started for deviceLabel=${device.deviceLabel}"
+        )
+
         return StartEnrollmentResponse(
             userId = user.id,
             deviceId = device.id,
@@ -127,11 +138,26 @@ class EnrollmentService(
         )
 
         if (!valid) {
+            auditLogService.logEvent(
+                eventType = AuditEventType.ENROLLMENT_CONFIRM_FAILED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = device.user.externalUserId,
+                deviceId = device.id,
+                details = "Invalid TOTP code supplied during enrollment confirmation"
+            )
             throw BadRequestException("Provided TOTP code is invalid")
         }
 
         device.status = DeviceStatus.ACTIVE
         device.confirmedAt = now
+
+        auditLogService.logEvent(
+            eventType = AuditEventType.ENROLLMENT_CONFIRMED,
+            outcome = AuditOutcome.SUCCESS,
+            externalUserId = device.user.externalUserId,
+            deviceId = device.id,
+            details = "Device enrollment confirmed"
+        )
 
         return ConfirmEnrollmentResponse(
             deviceId = device.id,
@@ -155,6 +181,14 @@ class EnrollmentService(
 
         device.status = DeviceStatus.REVOKED
         device.revokedAt = Instant.now(clock)
+
+        auditLogService.logEvent(
+            eventType = AuditEventType.DEVICE_REVOKED,
+            outcome = AuditOutcome.SUCCESS,
+            externalUserId = request.externalUserId,
+            deviceId = device.id,
+            details = "Device revoked"
+        )
 
         return RevokeDeviceResponse(
             deviceId = device.id,

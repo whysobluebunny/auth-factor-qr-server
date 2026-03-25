@@ -13,6 +13,8 @@ import ru.mephi.abondarenko.auth.factor.qr.api.error.BadRequestException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.ConflictException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.NotFoundException
 import ru.mephi.abondarenko.auth.factor.qr.config.AuthFactorProperties
+import ru.mephi.abondarenko.auth.factor.qr.domain.AuditEventType
+import ru.mephi.abondarenko.auth.factor.qr.domain.AuditOutcome
 import ru.mephi.abondarenko.auth.factor.qr.domain.DeviceStatus
 import ru.mephi.abondarenko.auth.factor.qr.domain.SessionStatus
 import ru.mephi.abondarenko.auth.factor.qr.entity.AuthSession
@@ -28,6 +30,7 @@ import java.time.Instant
 
 @Service
 class AuthSessionService(
+    private val auditLogService: AuditLogService,
     private val userService: UserService,
     private val registeredDeviceRepository: RegisteredDeviceRepository,
     private val authSessionRepository: AuthSessionRepository,
@@ -70,6 +73,15 @@ class AuthSessionService(
             timestamp = session.createdAt.epochSecond
         )
 
+        auditLogService.logEvent(
+            eventType = AuditEventType.AUTH_CHALLENGE_CREATED,
+            outcome = AuditOutcome.SUCCESS,
+            externalUserId = user.externalUserId,
+            deviceId = device.id,
+            sessionId = session.id,
+            details = "Authentication challenge created"
+        )
+
         return CreateChallengeResponse(
             sessionId = session.id,
             status = session.status,
@@ -99,11 +111,27 @@ class AuthSessionService(
 
         if (now.isAfter(session.expiresAt)) {
             session.status = SessionStatus.EXPIRED
+            auditLogService.logEvent(
+                eventType = AuditEventType.AUTH_SESSION_EXPIRED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = session.user.externalUserId,
+                deviceId = session.device.id,
+                sessionId = session.id,
+                details = "Authentication session expired before verification"
+            )
             return session.toVerifyResult(approved = false)
         }
 
         if (session.attemptCount >= session.maxAttempts) {
             session.status = SessionStatus.BLOCKED
+            auditLogService.logEvent(
+                eventType = AuditEventType.AUTH_SESSION_BLOCKED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = session.user.externalUserId,
+                deviceId = session.device.id,
+                sessionId = session.id,
+                details = "Authentication session already blocked"
+            )
             return session.toVerifyResult(approved = false)
         }
 
@@ -115,7 +143,7 @@ class AuthSessionService(
         val deviceActive = device.status == DeviceStatus.ACTIVE
 
         if (!timestampIsFresh || !challengeMatches || !deviceMatches || !deviceActive) {
-            return rejectAttempt(session)
+            return rejectAttempt(session, "QR response validation failed before TOTP verification")
         }
 
         val secret = secretCryptoService.decrypt(device.secretCiphertext, device.secretNonce)
@@ -132,7 +160,7 @@ class AuthSessionService(
         )
 
         if (!totpValid) {
-            return rejectAttempt(session)
+            return rejectAttempt(session, "Invalid TOTP in QR response")
         }
 
         session.status = SessionStatus.APPROVED
@@ -141,6 +169,15 @@ class AuthSessionService(
             "${request.sessionId}|${request.challenge}|${request.totp}|${request.timestamp}|${request.deviceId}"
         )
         device.lastUsedAt = now
+
+        auditLogService.logEvent(
+            eventType = AuditEventType.AUTH_RESPONSE_APPROVED,
+            outcome = AuditOutcome.SUCCESS,
+            externalUserId = session.user.externalUserId,
+            deviceId = device.id,
+            sessionId = session.id,
+            details = "Authentication response approved"
+        )
 
         return session.toVerifyResult(approved = true)
     }
@@ -163,11 +200,22 @@ class AuthSessionService(
         )
     }
 
-    private fun rejectAttempt(session: AuthSession): VerifyQrResponseResult {
+    private fun rejectAttempt(session: AuthSession, reason: String): VerifyQrResponseResult {
         session.attemptCount += 1
-        if (session.attemptCount >= session.maxAttempts) {
+        val blocked = session.attemptCount >= session.maxAttempts
+        if (blocked) {
             session.status = SessionStatus.BLOCKED
         }
+
+        auditLogService.logEvent(
+            eventType = if (blocked) AuditEventType.AUTH_SESSION_BLOCKED else AuditEventType.AUTH_RESPONSE_REJECTED,
+            outcome = AuditOutcome.FAILURE,
+            externalUserId = session.user.externalUserId,
+            deviceId = session.device.id,
+            sessionId = session.id,
+            details = reason
+        )
+
         return session.toVerifyResult(approved = false)
     }
 
