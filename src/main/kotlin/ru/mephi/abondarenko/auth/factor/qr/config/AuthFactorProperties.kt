@@ -16,6 +16,8 @@ data class AuthFactorProperties(
     var verifyRateLimitWindow: Duration = Duration.ofMinutes(1),
     var verifyRateLimitRequests: Int = 10,
     var maxVerifyAttempts: Int = 5,
+    var authSessionRetention: Duration = Duration.ofDays(7),
+    var authSessionCleanupInterval: Duration = Duration.ofMinutes(15),
     var masterKeyBase64: String = "",
     var apiKeyHeaderName: String = "X-Auth-Factor-Api-Key",
     var apiKey: String = ""

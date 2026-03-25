@@ -42,6 +42,8 @@ app:
     verify-rate-limit-window: 1m
     verify-rate-limit-requests: 10
     max-verify-attempts: 5
+    auth-session-retention: 7d
+    auth-session-cleanup-interval: 15m
     master-key-base64: ${AUTH_FACTOR_MASTER_KEY_BASE64:REPLACE_WITH_32_BYTE_BASE64_KEY}
     api-key-header-name: X-Auth-Factor-Api-Key
     api-key: ${AUTH_FACTOR_API_KEY:REPLACE_WITH_API_KEY}
