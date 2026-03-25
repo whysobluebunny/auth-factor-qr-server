@@ -36,7 +36,11 @@ app:
     otp-digits: 6
     allowed-clock-skew-steps: 1
     challenge-ttl: 2m
+    challenge-rate-limit-window: 1m
+    challenge-rate-limit-requests: 5
     response-max-age: 2m
+    verify-rate-limit-window: 1m
+    verify-rate-limit-requests: 10
     max-verify-attempts: 5
     master-key-base64: ${AUTH_FACTOR_MASTER_KEY_BASE64:REPLACE_WITH_32_BYTE_BASE64_KEY}
     api-key-header-name: X-Auth-Factor-Api-Key

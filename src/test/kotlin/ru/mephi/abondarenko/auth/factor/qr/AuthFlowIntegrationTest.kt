@@ -3,6 +3,7 @@ package ru.mephi.abondarenko.auth.factor.qr
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -10,6 +11,7 @@ import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.CreateChallengeRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ResponseQrPayload
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.error.TooManyRequestsException
 import ru.mephi.abondarenko.auth.factor.qr.domain.SessionStatus
 import ru.mephi.abondarenko.auth.factor.qr.domain.TotpAlgorithm
 import ru.mephi.abondarenko.auth.factor.qr.service.AuthSessionService
@@ -157,4 +159,100 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
         assertEquals(3, thirdResult.attemptCount)
         assertEquals(3, thirdResult.maxAttempts)
     }
+
+    @Test
+    fun `should rate limit challenge creation per user`() {
+        val enrollment = activeEnrollment("user-rl-001", "Challenge Limited User", "Phone")
+
+        repeat(5) {
+            authSessionService.createChallenge(
+                CreateChallengeRequest(
+                    externalUserId = "user-rl-001",
+                    deviceId = enrollment.deviceId,
+                    firstFactorRef = "challenge-$it"
+                )
+            )
+        }
+
+        assertThrows(TooManyRequestsException::class.java) {
+            authSessionService.createChallenge(
+                CreateChallengeRequest(
+                    externalUserId = "user-rl-001",
+                    deviceId = enrollment.deviceId,
+                    firstFactorRef = "challenge-5"
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `should rate limit verify attempts per user and device`() {
+        val enrollment = activeEnrollment("user-rl-002", "Verify Limited User", "Phone")
+
+        repeat(3) {
+            val challenge = authSessionService.createChallenge(
+                CreateChallengeRequest(
+                    externalUserId = "user-rl-002",
+                    deviceId = enrollment.deviceId,
+                    firstFactorRef = "verify-rate-limit-$it"
+                )
+            )
+
+            authSessionService.verifyResponse(
+                ResponseQrPayload(
+                    type = "response",
+                    sessionId = challenge.sessionId,
+                    challenge = challenge.qrPayload.challenge,
+                    totp = "000000",
+                    timestamp = Instant.now(clock).epochSecond,
+                    deviceId = enrollment.deviceId
+                )
+            )
+        }
+
+        assertThrows(TooManyRequestsException::class.java) {
+            val challenge = authSessionService.createChallenge(
+                CreateChallengeRequest(
+                    externalUserId = "user-rl-002",
+                    deviceId = enrollment.deviceId,
+                    firstFactorRef = "verify-rate-limit-3"
+                )
+            )
+
+            authSessionService.verifyResponse(
+                ResponseQrPayload(
+                    type = "response",
+                    sessionId = challenge.sessionId,
+                    challenge = challenge.qrPayload.challenge,
+                    totp = "000000",
+                    timestamp = Instant.now(clock).epochSecond,
+                    deviceId = enrollment.deviceId
+                )
+            )
+        }
+    }
+
+    private fun activeEnrollment(externalUserId: String, displayName: String, deviceLabel: String) =
+        enrollmentService.startEnrollment(
+            StartEnrollmentRequest(
+                externalUserId = externalUserId,
+                displayName = displayName,
+                deviceLabel = deviceLabel
+            )
+        ).also { enrollment ->
+            val enrollmentCode = totpService.generate(
+                secretBase32 = enrollment.qrPayload.secret,
+                timestamp = Instant.now(clock),
+                digits = enrollment.qrPayload.digits,
+                periodSeconds = enrollment.qrPayload.period,
+                algorithm = TotpAlgorithm.valueOf(enrollment.qrPayload.algorithm)
+            )
+
+            enrollmentService.confirmEnrollment(
+                ConfirmEnrollmentRequest(
+                    deviceId = enrollment.deviceId,
+                    totpCode = enrollmentCode
+                )
+            )
+        }
 }

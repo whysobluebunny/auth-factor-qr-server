@@ -12,6 +12,7 @@ import ru.mephi.abondarenko.auth.factor.qr.api.dto.VerifyQrResponseResult
 import ru.mephi.abondarenko.auth.factor.qr.api.error.BadRequestException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.ConflictException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.NotFoundException
+import ru.mephi.abondarenko.auth.factor.qr.api.error.TooManyRequestsException
 import ru.mephi.abondarenko.auth.factor.qr.config.AuthFactorProperties
 import ru.mephi.abondarenko.auth.factor.qr.domain.AuditEventType
 import ru.mephi.abondarenko.auth.factor.qr.domain.AuditOutcome
@@ -31,6 +32,7 @@ import java.time.Instant
 @Service
 class AuthSessionService(
     private val auditLogService: AuditLogService,
+    private val rateLimitService: RateLimitService,
     private val userService: UserService,
     private val registeredDeviceRepository: RegisteredDeviceRepository,
     private val authSessionRepository: AuthSessionRepository,
@@ -47,6 +49,8 @@ class AuthSessionService(
         val user = userService.getByExternalUserId(request.externalUserId)
         val device = registeredDeviceRepository.findByIdAndUserExternalUserId(request.deviceId, request.externalUserId)
             ?: throw NotFoundException("Device ${request.deviceId} not found for user ${request.externalUserId}")
+
+        enforceChallengeRateLimit(user.externalUserId, device.id)
 
         if (device.status != DeviceStatus.ACTIVE) {
             throw ConflictException("Device ${device.id} is not active")
@@ -136,6 +140,7 @@ class AuthSessionService(
         }
 
         val device = session.device
+        enforceVerifyRateLimit(session.user.externalUserId, device.id, session.id)
 
         val timestampIsFresh = kotlin.math.abs(now.epochSecond - request.timestamp) <= properties.responseMaxAge.seconds
         val challengeMatches = session.challenge == request.challenge
@@ -198,6 +203,45 @@ class AuthSessionService(
             attemptCount = session.attemptCount,
             maxAttempts = session.maxAttempts
         )
+    }
+
+    private fun enforceChallengeRateLimit(externalUserId: String, deviceId: java.util.UUID) {
+        val allowed = rateLimitService.tryAcquire(
+            key = "challenge:$externalUserId",
+            limit = properties.challengeRateLimitRequests,
+            window = properties.challengeRateLimitWindow
+        )
+
+        if (!allowed) {
+            auditLogService.logEvent(
+                eventType = AuditEventType.AUTH_CHALLENGE_RATE_LIMITED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = externalUserId,
+                deviceId = deviceId,
+                details = "Challenge rate limit exceeded"
+            )
+            throw TooManyRequestsException("Challenge rate limit exceeded for user $externalUserId")
+        }
+    }
+
+    private fun enforceVerifyRateLimit(externalUserId: String, deviceId: java.util.UUID, sessionId: java.util.UUID) {
+        val allowed = rateLimitService.tryAcquire(
+            key = "verify:$externalUserId:$deviceId",
+            limit = properties.verifyRateLimitRequests,
+            window = properties.verifyRateLimitWindow
+        )
+
+        if (!allowed) {
+            auditLogService.logEvent(
+                eventType = AuditEventType.AUTH_VERIFY_RATE_LIMITED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = externalUserId,
+                deviceId = deviceId,
+                sessionId = sessionId,
+                details = "Verify rate limit exceeded"
+            )
+            throw TooManyRequestsException("Verify rate limit exceeded for user $externalUserId")
+        }
     }
 
     private fun rejectAttempt(session: AuthSession, reason: String): VerifyQrResponseResult {
