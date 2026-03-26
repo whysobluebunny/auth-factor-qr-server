@@ -7,7 +7,8 @@ import org.springframework.ui.Model
 import org.springframework.validation.BindingResult
 import org.springframework.web.bind.annotation.*
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ChallengeQrPayload
-import ru.mephi.abondarenko.auth.factor.qr.api.dto.ResponseQrPayload
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceAuthResponseRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceEnrollmentConfirmRequest
 import ru.mephi.abondarenko.auth.factor.qr.service.AuthSessionService
 import ru.mephi.abondarenko.auth.factor.qr.service.totp.TotpService
 import ru.mephi.abondarenko.auth.factor.qr.ui.hosted.HostedDeviceSimulatorForm
@@ -31,6 +32,7 @@ class HostedDeviceSimulatorController(
     fun simulatorPage(
         @RequestParam(required = false) sessionId: UUID?,
         @RequestParam(required = false) deviceId: UUID?,
+        @RequestParam(required = false) enrollmentToken: String?,
         @RequestParam(required = false) returnUrl: String?,
         model: Model
     ): String {
@@ -40,6 +42,7 @@ class HostedDeviceSimulatorController(
                 HostedDeviceSimulatorForm(
                     deviceId = deviceId,
                     sessionId = sessionId,
+                    enrollmentToken = enrollmentToken ?: "",
                     challengePayloadRaw = sessionId?.let(authSessionService::getChallengePayloadRaw) ?: "",
                     digits = 6,
                     period = 30,
@@ -70,12 +73,24 @@ class HostedDeviceSimulatorController(
             algorithm = form.algorithm!!
         )
 
+        val enrollmentConfirmPayloadRaw = if (form.deviceId != null && form.enrollmentToken.isNotBlank()) {
+            objectMapper.writeValueAsString(
+                DeviceEnrollmentConfirmRequest(
+                    deviceId = form.deviceId,
+                    enrollmentToken = form.enrollmentToken,
+                    totpCode = currentTotpCode
+                )
+            )
+        } else {
+            null
+        }
+
         val responsePayloadRaw = if (form.sessionId != null || form.challengePayloadRaw.isNotBlank()) {
             val challengePayload = parseChallengePayload(form)
             objectMapper.writeValueAsString(
-                ResponseQrPayload(
-                    type = "response",
+                DeviceAuthResponseRequest(
                     sessionId = challengePayload.sessionId,
+                    responseToken = challengePayload.responseToken,
                     challenge = challengePayload.challenge,
                     totp = currentTotpCode,
                     timestamp = now.epochSecond,
@@ -91,7 +106,10 @@ class HostedDeviceSimulatorController(
             HostedDeviceSimulatorViewModel(
                 generatedAt = now,
                 currentTotpCode = currentTotpCode,
-                responsePayloadRaw = responsePayloadRaw
+                enrollmentConfirmPayloadRaw = enrollmentConfirmPayloadRaw,
+                responsePayloadRaw = responsePayloadRaw,
+                enrollmentSubmitUrl = if (enrollmentConfirmPayloadRaw != null) "/api/v1/device/enrollments/confirm" else null,
+                authResponseSubmitUrl = if (responsePayloadRaw != null) "/api/v1/device/auth/respond" else null
             )
         )
         return "ui/debug/device-simulator"

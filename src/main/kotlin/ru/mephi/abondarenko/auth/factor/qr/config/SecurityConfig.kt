@@ -23,6 +23,7 @@ class SecurityConfig(
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it.requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                it.requestMatchers("/api/v1/device/**").permitAll()
                 it.requestMatchers("/api/**", "/actuator/**").authenticated()
                 it.anyRequest().permitAll()
             }

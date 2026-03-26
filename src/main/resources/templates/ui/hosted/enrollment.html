@@ -61,6 +61,10 @@
                 <code th:text="${enrollment.secret}">BASE32SECRET</code>
             </div>
             <div th:if="${uiDebugEnabled}">
+                <span class="meta-label">Enrollment Token</span>
+                <code th:text="${enrollment.enrollmentToken}">token</code>
+            </div>
+            <div th:if="${uiDebugEnabled}">
                 <span class="meta-label">TOTP Params</span>
                 <strong th:text="${enrollment.digits + ' digits / ' + enrollment.period + 's / ' + enrollment.algorithm}">6
                     digits / 30s / SHA1</strong>
@@ -88,7 +92,7 @@
             <a
                     th:if="${uiDebugEnabled}"
                     class="button ghost"
-                    th:href="@{/ui/tools/device-simulator(deviceId=${enrollment.deviceId})}">
+                    th:href="@{/ui/tools/device-simulator(deviceId=${enrollment.deviceId},enrollmentToken=${enrollment.enrollmentToken})}">
                 Open Device Simulator
             </a>
         </form>

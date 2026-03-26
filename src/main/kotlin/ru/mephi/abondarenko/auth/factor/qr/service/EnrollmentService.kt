@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentResponse
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceEnrollmentConfirmRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceInfoResponse
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.EnrollmentQrPayload
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.RevokeDeviceRequest
@@ -26,6 +27,8 @@ import ru.mephi.abondarenko.auth.factor.qr.service.crypto.SecretCryptoService
 import ru.mephi.abondarenko.auth.factor.qr.service.totp.TotpService
 import java.time.Clock
 import java.time.Instant
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.util.UUID
 
 @Service
@@ -69,6 +72,8 @@ class EnrollmentService(
 
         val secret = randomTokenService.randomBase32Secret()
         val encryptedSecret = secretCryptoService.encrypt(secret)
+        val enrollmentToken = randomTokenService.randomUrlSafeToken()
+        val now = Instant.now(clock)
 
         val device = registeredDeviceRepository.save(
             RegisteredDevice(
@@ -80,7 +85,9 @@ class EnrollmentService(
                 secretNonce = encryptedSecret.nonce,
                 algorithm = TotpAlgorithm.SHA1,
                 digits = properties.otpDigits,
-                periodSeconds = properties.otpPeriod.seconds.toInt()
+                periodSeconds = properties.otpPeriod.seconds.toInt(),
+                enrollmentTokenHash = sha256(enrollmentToken),
+                enrollmentTokenExpiresAt = now.plus(properties.enrollmentTokenTtl)
             )
         )
 
@@ -89,6 +96,7 @@ class EnrollmentService(
             userId = user.externalUserId,
             deviceId = device.id.toString(),
             secret = secret,
+            enrollmentToken = enrollmentToken,
             period = device.periodSeconds,
             digits = device.digits,
             algorithm = device.algorithm.name
@@ -115,6 +123,73 @@ class EnrollmentService(
     fun confirmEnrollment(request: ConfirmEnrollmentRequest): ConfirmEnrollmentResponse {
         val device = registeredDeviceRepository.findById(request.deviceId)
             .orElseThrow { NotFoundException("Device ${request.deviceId} not found") }
+        return confirmEnrollmentInternal(device, request.totpCode, requireDeviceToken = false, suppliedToken = null)
+    }
+
+    @Transactional
+    fun confirmEnrollmentFromDevice(request: DeviceEnrollmentConfirmRequest): ConfirmEnrollmentResponse {
+        val device = registeredDeviceRepository.findByIdAndEnrollmentTokenHash(request.deviceId, sha256(request.enrollmentToken))
+            ?: run {
+                auditLogService.logEvent(
+                    eventType = AuditEventType.ENROLLMENT_DEVICE_TOKEN_REJECTED,
+                    outcome = AuditOutcome.FAILURE,
+                    deviceId = request.deviceId,
+                    details = "Enrollment confirmation rejected due to invalid device token"
+                )
+                throw NotFoundException("Enrollment confirmation context not found")
+            }
+
+        return confirmEnrollmentInternal(
+            device = device,
+            totpCode = request.totpCode,
+            requireDeviceToken = true,
+            suppliedToken = request.enrollmentToken
+        )
+    }
+
+    private fun confirmEnrollmentInternal(
+        device: RegisteredDevice,
+        totpCode: String,
+        requireDeviceToken: Boolean,
+        suppliedToken: String?
+    ): ConfirmEnrollmentResponse {
+        val now = Instant.now(clock)
+
+        if (requireDeviceToken) {
+            val tokenHash = device.enrollmentTokenHash
+            val tokenExpiresAt = device.enrollmentTokenExpiresAt
+
+            if (tokenHash == null || tokenExpiresAt == null) {
+                auditLogService.logEvent(
+                    eventType = AuditEventType.ENROLLMENT_DEVICE_TOKEN_REJECTED,
+                    outcome = AuditOutcome.FAILURE,
+                    externalUserId = device.user.externalUserId,
+                    deviceId = device.id,
+                    details = "Enrollment confirmation token context is missing"
+                )
+                throw ConflictException("Enrollment confirmation token is not available")
+            }
+            if (now.isAfter(tokenExpiresAt)) {
+                auditLogService.logEvent(
+                    eventType = AuditEventType.ENROLLMENT_DEVICE_TOKEN_REJECTED,
+                    outcome = AuditOutcome.FAILURE,
+                    externalUserId = device.user.externalUserId,
+                    deviceId = device.id,
+                    details = "Enrollment confirmation token expired"
+                )
+                throw ConflictException("Enrollment confirmation token expired")
+            }
+            if (suppliedToken == null || !constantTimeEquals(tokenHash, sha256(suppliedToken))) {
+                auditLogService.logEvent(
+                    eventType = AuditEventType.ENROLLMENT_DEVICE_TOKEN_REJECTED,
+                    outcome = AuditOutcome.FAILURE,
+                    externalUserId = device.user.externalUserId,
+                    deviceId = device.id,
+                    details = "Enrollment confirmation token mismatch"
+                )
+                throw NotFoundException("Enrollment confirmation context not found")
+            }
+        }
 
         when (device.status) {
             DeviceStatus.ACTIVE -> {
@@ -129,11 +204,10 @@ class EnrollmentService(
         }
 
         val secret = secretCryptoService.decrypt(device.secretCiphertext, device.secretNonce)
-        val now = Instant.now(clock)
 
         val valid = totpService.verify(
             secretBase32 = secret,
-            code = request.totpCode,
+            code = totpCode,
             timestamp = now,
             digits = device.digits,
             periodSeconds = device.periodSeconds,
@@ -154,6 +228,8 @@ class EnrollmentService(
 
         device.status = DeviceStatus.ACTIVE
         device.confirmedAt = now
+        device.enrollmentTokenHash = null
+        device.enrollmentTokenExpiresAt = null
 
         auditLogService.logEvent(
             eventType = AuditEventType.ENROLLMENT_CONFIRMED,
@@ -167,6 +243,19 @@ class EnrollmentService(
             deviceId = device.id,
             deviceStatus = device.status,
             confirmedAt = device.confirmedAt!!
+        )
+    }
+
+    private fun sha256(value: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(StandardCharsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun constantTimeEquals(expectedHash: String, actualHash: String): Boolean {
+        return MessageDigest.isEqual(
+            expectedHash.toByteArray(StandardCharsets.UTF_8),
+            actualHash.toByteArray(StandardCharsets.UTF_8)
         )
     }
 

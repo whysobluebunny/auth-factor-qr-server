@@ -51,6 +51,7 @@ data class HostedEnrollmentViewModel(
     val deviceId: UUID,
     val deviceStatus: String,
     val secret: String,
+    val enrollmentToken: String,
     val period: Int,
     val digits: Int,
     val algorithm: TotpAlgorithm,
@@ -92,6 +93,9 @@ data class HostedDeviceSimulatorForm(
 
     val sessionId: UUID? = null,
 
+    @field:Size(max = 1024)
+    val enrollmentToken: String = "",
+
     @field:Size(max = 4096)
     val challengePayloadRaw: String = "",
 
@@ -111,5 +115,8 @@ data class HostedDeviceSimulatorForm(
 data class HostedDeviceSimulatorViewModel(
     val generatedAt: Instant,
     val currentTotpCode: String,
-    val responsePayloadRaw: String?
+    val enrollmentConfirmPayloadRaw: String?,
+    val responsePayloadRaw: String?,
+    val enrollmentSubmitUrl: String?,
+    val authResponseSubmitUrl: String?
 )

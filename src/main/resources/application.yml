@@ -47,6 +47,8 @@ app:
     allow-duplicate-device-labels: false
     auth-session-retention: 7d
     auth-session-cleanup-interval: 15m
+    enrollment-token-ttl: 10m
+    device-response-token-ttl: 2m
     debug-ui-enabled: false
     master-key-base64: ${AUTH_FACTOR_MASTER_KEY_BASE64:REPLACE_WITH_32_BYTE_BASE64_KEY}
     api-key-header-name: X-Auth-Factor-Api-Key

@@ -7,6 +7,7 @@ import org.springframework.validation.BindingResult
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.mvc.support.RedirectAttributes
 import org.springframework.web.util.UriComponentsBuilder
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceAuthResponseRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ResponseQrPayload
 import ru.mephi.abondarenko.auth.factor.qr.service.AuthSessionService
 import tools.jackson.databind.json.JsonMapper
@@ -62,8 +63,13 @@ class HostedAuthController(
             return "redirect:/ui/auth/sessions/$sessionId"
         }
 
-        val payload = objectMapper.readValue(verifyForm.responsePayloadRaw, ResponseQrPayload::class.java)
-        val result = authSessionService.verifyResponse(payload)
+        val result = if (verifyForm.responsePayloadRaw.contains("\"response_token\"")) {
+            val payload = objectMapper.readValue(verifyForm.responsePayloadRaw, DeviceAuthResponseRequest::class.java)
+            authSessionService.verifyResponseFromDevice(payload)
+        } else {
+            val payload = objectMapper.readValue(verifyForm.responsePayloadRaw, ResponseQrPayload::class.java)
+            authSessionService.verifyResponse(payload)
+        }
 
         if (result.approved && !verifyForm.returnUrl.isNullOrBlank()) {
             val redirectUrl = UriComponentsBuilder.fromUriString(verifyForm.returnUrl)

@@ -22,6 +22,9 @@ data class EnrollmentQrPayload(
     @JsonProperty("secret")
     val secret: String,
 
+    @JsonProperty("enrollment_token")
+    val enrollmentToken: String,
+
     @JsonProperty("period")
     val period: Int,
 
@@ -46,7 +49,10 @@ data class ChallengeQrPayload(
     val serviceId: String,
 
     @JsonProperty("timestamp")
-    val timestamp: Long
+    val timestamp: Long,
+
+    @JsonProperty("response_token")
+    val responseToken: String
 )
 
 data class ResponseQrPayload(
@@ -57,6 +63,45 @@ data class ResponseQrPayload(
     @JsonProperty("session_id")
     @field:NotNull
     val sessionId: UUID,
+
+    @JsonProperty("challenge")
+    @field:NotBlank
+    val challenge: String,
+
+    @JsonProperty("totp")
+    @field:Pattern(regexp = "^[0-9]{6,8}$")
+    val totp: String,
+
+    @JsonProperty("timestamp")
+    val timestamp: Long,
+
+    @JsonProperty("device_id")
+    @field:NotNull
+    val deviceId: UUID
+)
+
+data class DeviceEnrollmentConfirmRequest(
+    @JsonProperty("device_id")
+    @field:NotNull
+    val deviceId: UUID,
+
+    @JsonProperty("enrollment_token")
+    @field:NotBlank
+    val enrollmentToken: String,
+
+    @JsonProperty("totp_code")
+    @field:Pattern(regexp = "^[0-9]{6,8}$")
+    val totpCode: String
+)
+
+data class DeviceAuthResponseRequest(
+    @JsonProperty("session_id")
+    @field:NotNull
+    val sessionId: UUID,
+
+    @JsonProperty("response_token")
+    @field:NotBlank
+    val responseToken: String,
 
     @JsonProperty("challenge")
     @field:NotBlank

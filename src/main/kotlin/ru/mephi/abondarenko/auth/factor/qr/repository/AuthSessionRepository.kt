@@ -8,6 +8,8 @@ import java.time.Instant
 import java.util.UUID
 
 interface AuthSessionRepository : JpaRepository<AuthSession, UUID> {
+    fun findByIdAndDeviceResponseTokenHash(id: UUID, deviceResponseTokenHash: String): AuthSession?
+
     @Modifying
     @Query(
         """

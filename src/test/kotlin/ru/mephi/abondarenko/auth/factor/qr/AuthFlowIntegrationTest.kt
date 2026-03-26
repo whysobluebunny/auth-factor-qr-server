@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.CreateChallengeRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceAuthResponseRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceEnrollmentConfirmRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ResponseQrPayload
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.error.TooManyRequestsException
@@ -93,6 +95,66 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
 
         val sessionInfo = authSessionService.getSessionInfo(challenge.sessionId)
         assertEquals(SessionStatus.APPROVED, sessionInfo.status)
+    }
+
+    @Test
+    fun `should confirm enrollment and approve auth response through device facing flow`() {
+        val enrollment = enrollmentService.startEnrollment(
+            StartEnrollmentRequest(
+                externalUserId = "user-device-001",
+                displayName = "Device Flow User",
+                deviceLabel = "Android Device"
+            )
+        )
+
+        val enrollmentCode = totpService.generate(
+            secretBase32 = enrollment.qrPayload.secret,
+            timestamp = Instant.now(clock),
+            digits = enrollment.qrPayload.digits,
+            periodSeconds = enrollment.qrPayload.period,
+            algorithm = TotpAlgorithm.valueOf(enrollment.qrPayload.algorithm)
+        )
+
+        val confirmResult = enrollmentService.confirmEnrollmentFromDevice(
+            DeviceEnrollmentConfirmRequest(
+                deviceId = enrollment.deviceId,
+                enrollmentToken = enrollment.qrPayload.enrollmentToken,
+                totpCode = enrollmentCode
+            )
+        )
+
+        assertEquals(enrollment.deviceId, confirmResult.deviceId)
+
+        val challenge = authSessionService.createChallenge(
+            CreateChallengeRequest(
+                externalUserId = "user-device-001",
+                deviceId = enrollment.deviceId,
+                firstFactorRef = "first-factor-device-flow"
+            )
+        )
+
+        val responseTimestamp = Instant.now(clock)
+        val responseCode = totpService.generate(
+            secretBase32 = enrollment.qrPayload.secret,
+            timestamp = responseTimestamp,
+            digits = enrollment.qrPayload.digits,
+            periodSeconds = enrollment.qrPayload.period,
+            algorithm = TotpAlgorithm.valueOf(enrollment.qrPayload.algorithm)
+        )
+
+        val verifyResult = authSessionService.verifyResponseFromDevice(
+            DeviceAuthResponseRequest(
+                sessionId = challenge.sessionId,
+                responseToken = challenge.qrPayload.responseToken,
+                challenge = challenge.qrPayload.challenge,
+                totp = responseCode,
+                timestamp = responseTimestamp.epochSecond,
+                deviceId = enrollment.deviceId
+            )
+        )
+
+        assertTrue(verifyResult.approved)
+        assertEquals(SessionStatus.APPROVED, verifyResult.status)
     }
 
     @Test

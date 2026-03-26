@@ -34,6 +34,9 @@ class ApiKeySecurityFilter(
         if (path == "/error" || path == "/actuator/health" || path == "/actuator/info") {
             return true
         }
+        if (path.startsWith("/api/v1/device/")) {
+            return true
+        }
         return !path.startsWith("/api/") && !path.startsWith("/actuator/")
     }
 

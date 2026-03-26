@@ -7,4 +7,5 @@ import java.util.UUID
 interface RegisteredDeviceRepository : JpaRepository<RegisteredDevice, UUID> {
     fun findByIdAndUserExternalUserId(id: UUID, externalUserId: String): RegisteredDevice?
     fun findAllByUserExternalUserIdOrderByCreatedAtDesc(externalUserId: String): List<RegisteredDevice>
+    fun findByIdAndEnrollmentTokenHash(id: UUID, enrollmentTokenHash: String): RegisteredDevice?
 }

@@ -7,10 +7,17 @@ import org.springframework.http.HttpStatus
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import tools.jackson.databind.json.JsonMapper
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceEnrollmentConfirmRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.service.EnrollmentService
+import ru.mephi.abondarenko.auth.factor.qr.service.totp.TotpService
+import ru.mephi.abondarenko.auth.factor.qr.domain.TotpAlgorithm
+import java.time.Clock
+import java.time.Instant
 
 @AutoConfigureMockMvc
 class ApiSecurityIntegrationTest : AbstractIntegrationTest() {
@@ -20,6 +27,15 @@ class ApiSecurityIntegrationTest : AbstractIntegrationTest() {
 
     @Autowired
     lateinit var enrollmentService: EnrollmentService
+
+    @Autowired
+    lateinit var totpService: TotpService
+
+    @Autowired
+    lateinit var objectMapper: JsonMapper
+
+    @Autowired
+    lateinit var clock: Clock
 
     @Test
     fun `should reject api request without api key`() {
@@ -58,5 +74,40 @@ class ApiSecurityIntegrationTest : AbstractIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(content().string(org.hamcrest.Matchers.containsString("ENROLLMENT_STARTED")))
+    }
+
+    @Test
+    fun `should allow device api without integration api key`() {
+        val enrollment = enrollmentService.startEnrollment(
+            StartEnrollmentRequest(
+                externalUserId = "user-device-sec-001",
+                displayName = "Device User",
+                deviceLabel = "Phone"
+            )
+        )
+
+        val enrollmentCode = totpService.generate(
+            secretBase32 = enrollment.qrPayload.secret,
+            timestamp = Instant.now(clock),
+            digits = enrollment.qrPayload.digits,
+            periodSeconds = enrollment.qrPayload.period,
+            algorithm = TotpAlgorithm.valueOf(enrollment.qrPayload.algorithm)
+        )
+
+        mockMvc.perform(
+            post("/api/v1/device/enrollments/confirm")
+                .contentType("application/json")
+                .content(
+                    objectMapper.writeValueAsString(
+                        DeviceEnrollmentConfirmRequest(
+                            deviceId = enrollment.deviceId,
+                            enrollmentToken = enrollment.qrPayload.enrollmentToken,
+                            totpCode = enrollmentCode
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isOk)
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("ACTIVE")))
     }
 }

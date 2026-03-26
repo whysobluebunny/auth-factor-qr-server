@@ -32,6 +32,10 @@
                 <span>Session ID</span>
                 <input type="text" th:field="*{sessionId}" placeholder="optional auth session UUID">
             </label>
+            <label class="full-width">
+                <span>Enrollment Token</span>
+                <input type="text" th:field="*{enrollmentToken}" placeholder="optional device enrollment token">
+            </label>
             <label>
                 <span>Digits</span>
                 <input type="number" th:field="*{digits}" placeholder="6">
@@ -73,9 +77,27 @@
             </div>
         </div>
 
+        <div th:if="${simulatorResult.enrollmentConfirmPayloadRaw != null}">
+            <span class="meta-label">Enrollment Confirm Payload</span>
+            <textarea class="payload" readonly th:text="${simulatorResult.enrollmentConfirmPayloadRaw}"></textarea>
+            <button
+                    class="button primary full-width js-api-submit"
+                    type="button"
+                    th:attr="data-endpoint=${simulatorResult.enrollmentSubmitUrl},data-payload=${simulatorResult.enrollmentConfirmPayloadRaw}">
+                Submit Enrollment Confirm To Device API
+            </button>
+        </div>
+
         <div th:if="${simulatorResult.responsePayloadRaw != null}">
-            <span class="meta-label">Response Payload</span>
+            <span class="meta-label">Device Auth Response Payload</span>
             <textarea class="payload" readonly th:text="${simulatorResult.responsePayloadRaw}"></textarea>
+
+            <button
+                    class="button primary full-width js-api-submit"
+                    type="button"
+                    th:attr="data-endpoint=${simulatorResult.authResponseSubmitUrl},data-payload=${simulatorResult.responsePayloadRaw}">
+                Submit Response To Device API
+            </button>
 
             <form
                     class="form-grid"
@@ -87,7 +109,56 @@
                 <button class="button primary full-width" type="submit">Submit Response To Hosted Session</button>
             </form>
         </div>
+
+        <div class="message info" id="api-submit-status" hidden></div>
+        <textarea class="payload" id="api-submit-response" hidden readonly></textarea>
     </section>
 </main>
+<script>
+    (() => {
+        const status = document.getElementById('api-submit-status');
+        const response = document.getElementById('api-submit-response');
+
+        document.querySelectorAll('.js-api-submit').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const endpoint = button.dataset.endpoint;
+                const payload = button.dataset.payload;
+                if (!endpoint || !payload) {
+                    return;
+                }
+
+                button.disabled = true;
+                status.hidden = false;
+                response.hidden = false;
+                status.className = 'message info';
+                status.textContent = 'Submitting request...';
+                response.value = '';
+
+                try {
+                    const result = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: payload
+                    });
+
+                    const body = await result.text();
+                    status.className = result.ok ? 'message success' : 'message error';
+                    status.textContent = result.ok
+                        ? `Request completed with ${result.status}`
+                        : `Request failed with ${result.status}`;
+                    response.value = body;
+                } catch (error) {
+                    status.className = 'message error';
+                    status.textContent = 'Request failed before reaching the device API';
+                    response.value = String(error);
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+    })();
+</script>
 </body>
 </html>

@@ -53,6 +53,7 @@ class HostedEnrollmentController(
                 deviceId = response.deviceId,
                 deviceStatus = response.deviceStatus.name,
                 secret = response.qrPayload.secret,
+                enrollmentToken = response.qrPayload.enrollmentToken,
                 period = response.qrPayload.period,
                 digits = response.qrPayload.digits,
                 algorithm = ru.mephi.abondarenko.auth.factor.qr.domain.TotpAlgorithm.valueOf(response.qrPayload.algorithm),

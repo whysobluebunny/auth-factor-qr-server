@@ -52,6 +52,7 @@ class AuthSessionService(
         }
 
         val now = Instant.now(clock)
+        val deviceResponseToken = randomTokenService.randomUrlSafeToken()
         val session = authSessionRepository.save(
             AuthSession(
                 user = user,
@@ -61,7 +62,10 @@ class AuthSessionService(
                 firstFactorRef = request.firstFactorRef,
                 createdAt = now,
                 expiresAt = now.plus(properties.challengeTtl),
-                maxAttempts = properties.maxVerifyAttempts
+                maxAttempts = properties.maxVerifyAttempts,
+                deviceResponseToken = deviceResponseToken,
+                deviceResponseTokenHash = sha256(deviceResponseToken),
+                deviceResponseTokenExpiresAt = now.plus(properties.deviceResponseTokenTtl)
             )
         )
 
@@ -69,7 +73,8 @@ class AuthSessionService(
             sessionId = session.id,
             challenge = session.challenge,
             serviceId = properties.serviceId,
-            timestamp = session.createdAt.epochSecond
+            timestamp = session.createdAt.epochSecond,
+            responseToken = deviceResponseToken
         )
 
         auditLogService.logEvent(
@@ -96,12 +101,59 @@ class AuthSessionService(
             throw BadRequestException("QR payload type must be 'response'")
         }
 
+        return verifyResponseInternal(
+            sessionId = request.sessionId,
+            challenge = request.challenge,
+            totp = request.totp,
+            timestamp = request.timestamp,
+            deviceId = request.deviceId,
+            responseToken = null,
+            requireDeviceToken = false
+        )
+    }
+
+    @Transactional
+    fun verifyResponseFromDevice(request: DeviceAuthResponseRequest): VerifyQrResponseResult {
+        return verifyResponseInternal(
+            sessionId = request.sessionId,
+            challenge = request.challenge,
+            totp = request.totp,
+            timestamp = request.timestamp,
+            deviceId = request.deviceId,
+            responseToken = request.responseToken,
+            requireDeviceToken = true
+        )
+    }
+
+    private fun verifyResponseInternal(
+        sessionId: java.util.UUID,
+        challenge: String,
+        totp: String,
+        timestamp: Long,
+        deviceId: java.util.UUID,
+        responseToken: String?,
+        requireDeviceToken: Boolean
+    ): VerifyQrResponseResult {
         val now = Instant.now(clock)
-        val session = authSessionRepository.findById(request.sessionId)
-            .orElseThrow { NotFoundException("Auth session ${request.sessionId} not found") }
+        val session = if (requireDeviceToken) {
+            authSessionRepository.findByIdAndDeviceResponseTokenHash(sessionId, sha256(responseToken ?: ""))
+                ?: run {
+                    auditLogService.logEvent(
+                        eventType = AuditEventType.AUTH_DEVICE_TOKEN_REJECTED,
+                        outcome = AuditOutcome.FAILURE,
+                        sessionId = sessionId,
+                        deviceId = deviceId,
+                        details = "Authentication response rejected due to invalid device token"
+                    )
+                    throw NotFoundException("Auth session $sessionId not found")
+                }
+        } else {
+            authSessionRepository.findById(sessionId)
+                .orElseThrow { NotFoundException("Auth session $sessionId not found") }
+        }
 
         if (session.status == SessionStatus.APPROVED) {
-            throw ConflictException("Auth session ${request.sessionId} already approved")
+            throw ConflictException("Auth session $sessionId already approved")
         }
 
         if (session.status == SessionStatus.EXPIRED || session.status == SessionStatus.BLOCKED) {
@@ -137,9 +189,13 @@ class AuthSessionService(
         val device = session.device
         enforceVerifyRateLimit(session.user.externalUserId, device.id, session.id)
 
-        val timestampIsFresh = kotlin.math.abs(now.epochSecond - request.timestamp) <= properties.responseMaxAge.seconds
-        val challengeMatches = session.challenge == request.challenge
-        val deviceMatches = device.id == request.deviceId
+        if (requireDeviceToken) {
+            validateDeviceResponseToken(session, responseToken, now)
+        }
+
+        val timestampIsFresh = kotlin.math.abs(now.epochSecond - timestamp) <= properties.responseMaxAge.seconds
+        val challengeMatches = session.challenge == challenge
+        val deviceMatches = device.id == deviceId
         val deviceActive = device.status == DeviceStatus.ACTIVE
 
         if (!timestampIsFresh || !challengeMatches || !deviceMatches || !deviceActive) {
@@ -147,11 +203,11 @@ class AuthSessionService(
         }
 
         val secret = secretCryptoService.decrypt(device.secretCiphertext, device.secretNonce)
-        val requestTime = Instant.ofEpochSecond(request.timestamp)
+        val requestTime = Instant.ofEpochSecond(timestamp)
 
         val totpValid = totpService.verify(
             secretBase32 = secret,
-            code = request.totp,
+            code = totp,
             timestamp = requestTime,
             digits = device.digits,
             periodSeconds = device.periodSeconds,
@@ -165,8 +221,11 @@ class AuthSessionService(
 
         session.status = SessionStatus.APPROVED
         session.verifiedAt = now
+        session.deviceResponseToken = null
+        session.deviceResponseTokenHash = null
+        session.deviceResponseTokenExpiresAt = null
         session.acceptedResponseHash = sha256(
-            "${request.sessionId}|${request.challenge}|${request.totp}|${request.timestamp}|${request.deviceId}"
+            "$sessionId|$challenge|$totp|$timestamp|$deviceId"
         )
         device.lastUsedAt = now
 
@@ -209,7 +268,8 @@ class AuthSessionService(
             sessionId = session.id,
             challenge = session.challenge,
             serviceId = properties.serviceId,
-            timestamp = session.createdAt.epochSecond
+            timestamp = session.createdAt.epochSecond,
+            responseToken = session.deviceResponseToken ?: ""
         )
 
         return objectMapper.writeValueAsString(qrPayload)
@@ -288,5 +348,51 @@ class AuthSessionService(
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(value.toByteArray(StandardCharsets.UTF_8))
         return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun validateDeviceResponseToken(session: AuthSession, responseToken: String?, now: Instant) {
+        val tokenHash = session.deviceResponseTokenHash
+            ?: run {
+                auditLogService.logEvent(
+                    eventType = AuditEventType.AUTH_DEVICE_TOKEN_REJECTED,
+                    outcome = AuditOutcome.FAILURE,
+                    externalUserId = session.user.externalUserId,
+                    deviceId = session.device.id,
+                    sessionId = session.id,
+                    details = "Device response token context is missing"
+                )
+                throw ConflictException("Device response token is not available")
+            }
+
+        val tokenExpiresAt = session.deviceResponseTokenExpiresAt
+            ?: throw ConflictException("Device response token is not available")
+
+        if (now.isAfter(tokenExpiresAt)) {
+            auditLogService.logEvent(
+                eventType = AuditEventType.AUTH_DEVICE_TOKEN_REJECTED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = session.user.externalUserId,
+                deviceId = session.device.id,
+                sessionId = session.id,
+                details = "Device response token expired"
+            )
+            throw ConflictException("Device response token expired")
+        }
+
+        if (responseToken == null || !MessageDigest.isEqual(
+                tokenHash.toByteArray(StandardCharsets.UTF_8),
+                sha256(responseToken).toByteArray(StandardCharsets.UTF_8)
+            )
+        ) {
+            auditLogService.logEvent(
+                eventType = AuditEventType.AUTH_DEVICE_TOKEN_REJECTED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = session.user.externalUserId,
+                deviceId = session.device.id,
+                sessionId = session.id,
+                details = "Device response token mismatch"
+            )
+            throw NotFoundException("Auth session ${session.id} not found")
+        }
     }
 }

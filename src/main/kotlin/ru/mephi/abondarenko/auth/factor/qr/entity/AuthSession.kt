@@ -54,5 +54,14 @@ class AuthSession(
     var maxAttempts: Int = 5,
 
     @Column(name = "accepted_response_hash", length = 64)
-    var acceptedResponseHash: String? = null
+    var acceptedResponseHash: String? = null,
+
+    @Column(name = "device_response_token", length = 255)
+    var deviceResponseToken: String? = null,
+
+    @Column(name = "device_response_token_hash", length = 64)
+    var deviceResponseTokenHash: String? = null,
+
+    @Column(name = "device_response_token_expires_at")
+    var deviceResponseTokenExpiresAt: Instant? = null
 )

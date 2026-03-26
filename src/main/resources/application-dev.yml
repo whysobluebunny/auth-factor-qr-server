@@ -8,6 +8,8 @@ spring:
 
 app:
   auth-factor:
-    debug-ui-enabled: false
+    debug-ui-enabled: true
+    enrollment-token-ttl: 10m
+    device-response-token-ttl: 2m
     master-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
     api-key: dev-api-key
