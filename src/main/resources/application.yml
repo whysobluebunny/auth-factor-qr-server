@@ -42,6 +42,9 @@ app:
     verify-rate-limit-window: 1m
     verify-rate-limit-requests: 10
     max-verify-attempts: 5
+    max-active-devices-per-user: 5
+    max-pending-devices-per-user: 2
+    allow-duplicate-device-labels: false
     auth-session-retention: 7d
     auth-session-cleanup-interval: 15m
     master-key-base64: ${AUTH_FACTOR_MASTER_KEY_BASE64:REPLACE_WITH_32_BYTE_BASE64_KEY}

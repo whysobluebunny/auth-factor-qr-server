@@ -31,6 +31,7 @@ import java.util.UUID
 @Service
 class EnrollmentService(
     private val auditLogService: AuditLogService,
+    private val deviceManagementPolicyService: DeviceManagementPolicyService,
     private val userService: UserService,
     private val registeredDeviceRepository: RegisteredDeviceRepository,
     private val secretCryptoService: SecretCryptoService,
@@ -63,6 +64,9 @@ class EnrollmentService(
     @Transactional
     fun startEnrollment(request: StartEnrollmentRequest): StartEnrollmentResponse {
         val user = userService.getOrCreate(request.externalUserId, request.displayName)
+        val existingDevices = registeredDeviceRepository.findAllByUserExternalUserIdOrderByCreatedAtDesc(user.externalUserId)
+        deviceManagementPolicyService.enforceEnrollmentPolicy(user, request.deviceLabel, existingDevices)
+
         val secret = randomTokenService.randomBase32Secret()
         val encryptedSecret = secretCryptoService.encrypt(secret)
 
