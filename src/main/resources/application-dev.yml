@@ -1,0 +1,13 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+  flyway:
+    enabled: false
+
+app:
+  auth-factor:
+    debug-ui-enabled: false
+    master-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    api-key: dev-api-key

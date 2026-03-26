@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demo Login | Auth Factor QR</title>
+    <link rel="stylesheet" th:href="@{/ui/app.css}">
+</head>
+<body>
+<main class="page">
+    <section class="panel">
+        <div class="eyebrow">Demo Relying Party</div>
+        <h1>Login</h1>
+        <p class="lead">Use <code>demo-user / password</code> or <code>alice / password</code>. The demo app will create
+            a challenge and redirect into the hosted second-factor flow.</p>
+
+        <div class="message error" th:if="${errorMessage != null}" th:text="${errorMessage}">Invalid credentials</div>
+        <div class="message info" th:if="${enrollmentUrl != null}">
+            Open device enrollment here:
+            <a th:href="${enrollmentUrl}">Hosted Enrollment</a>
+        </div>
+
+        <form class="form-grid" method="post" th:action="@{/demo/login}" th:object="${form}">
+            <label>
+                <span>Username</span>
+                <input type="text" th:field="*{username}" placeholder="demo-user">
+            </label>
+            <label>
+                <span>Password</span>
+                <input type="password" th:field="*{password}" placeholder="password">
+            </label>
+            <button class="button primary full-width" type="submit">Login And Continue To 2FA</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

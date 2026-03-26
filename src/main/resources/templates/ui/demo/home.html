@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demo Home | Auth Factor QR</title>
+    <link rel="stylesheet" th:href="@{/ui/app.css}">
+</head>
+<body>
+<main class="page">
+    <section class="panel">
+        <div class="eyebrow">Demo Relying Party</div>
+        <h1>Signed In</h1>
+        <p class="lead">The demo app has completed its first factor locally and received a successful second-factor
+            callback from the hosted QR-based service.</p>
+
+        <div class="status-banner approved">
+            Logged in as <strong th:text="${username}">demo-user</strong>
+        </div>
+
+        <form method="post" th:action="@{/demo/logout}">
+            <button class="button ghost" type="submit">Logout</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

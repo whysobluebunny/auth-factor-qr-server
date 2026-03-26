@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Auth Session | Auth Factor QR</title>
+    <link rel="stylesheet" th:href="@{/ui/app.css}">
+</head>
+<body>
+<main class="page">
+    <section class="panel">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Hosted 2FA UI</div>
+                <h1>Authentication Session</h1>
+                <p class="lead" th:if="${uiDebugEnabled}" th:text="${authSessionView.sessionId}">session-id</p>
+                <p class="lead" th:unless="${uiDebugEnabled}">Confirm the sign-in request from your registered
+                    second-factor device.</p>
+            </div>
+            <a class="button ghost" th:if="${uiDebugEnabled}" th:href="@{/ui/auth/challenges}">New Challenge</a>
+        </div>
+
+        <div class="status-banner"
+             th:classappend="${authSessionView.status.name() == 'APPROVED'} ? ' approved' : (${authSessionView.status.name() == 'PENDING'} ? ' pending' : ' blocked')"
+             th:text="'Status: ' + ${authSessionView.status}">
+            Status: PENDING
+        </div>
+
+        <div class="message success" th:if="${message != null}" th:text="${message}">Second factor approved.</div>
+        <div class="message error" th:if="${errorMessage != null}" th:text="${errorMessage}">Invalid payload.</div>
+
+        <div class="meta-grid" th:if="${uiDebugEnabled}">
+            <div>
+                <span class="meta-label">Created At</span>
+                <strong th:text="${authSessionView.createdAt}">time</strong>
+            </div>
+            <div>
+                <span class="meta-label">Expires At</span>
+                <strong th:text="${authSessionView.expiresAt}">time</strong>
+            </div>
+            <div>
+                <span class="meta-label">Verified At</span>
+                <strong th:text="${authSessionView.verifiedAt} ?: '-'">time</strong>
+            </div>
+            <div>
+                <span class="meta-label">Attempts</span>
+                <strong th:text="${authSessionView.attemptCount + ' / ' + authSessionView.maxAttempts}">0 / 3</strong>
+            </div>
+        </div>
+
+        <div class="qr-layout">
+            <div class="qr-card">
+                <img alt="Challenge QR" th:src="${authSessionView.qrCodeDataUrl}">
+            </div>
+            <div th:if="${uiDebugEnabled}">
+                <span class="meta-label">Challenge Payload</span>
+                <textarea class="payload" readonly th:text="${authSessionView.qrPayloadRaw}"></textarea>
+            </div>
+        </div>
+
+        <form class="form-grid" th:if="${uiDebugEnabled}" method="post"
+              th:action="@{|/ui/auth/sessions/${authSessionView.sessionId}/verify|}" th:object="${verifyForm}">
+            <input type="hidden" th:field="*{returnUrl}">
+            <label class="full-width">
+                <span>Response Payload JSON</span>
+                <textarea class="payload input-payload" th:field="*{responsePayloadRaw}"
+                          placeholder='{"type":"response","session_id":"...","challenge":"...","totp":"123456","timestamp":1774356605,"device_id":"..."}'></textarea>
+            </label>
+            <button class="button primary full-width" type="submit">Verify Response</button>
+        </form>
+
+        <div class="message info" th:if="${uiDebugEnabled}">
+            No mobile client yet:
+            <a th:href="@{/ui/tools/device-simulator(sessionId=${authSessionView.sessionId},returnUrl=${authSessionView.returnUrl})}">
+                open device simulator
+            </a>
+            and generate a response payload in the browser.
+        </div>
+
+        <div class="message info" th:unless="${uiDebugEnabled}">
+            This page is intended for a hosted second-factor confirmation flow. Technical payload details are hidden
+            outside debug mode.
+        </div>
+
+        <div class="message info"
+             th:if="${uiDebugEnabled and authSessionView.returnUrl != null and authSessionView.status.name() == 'APPROVED'}">
+            Return URL captured for future hosted redirect flow:
+            <code th:text="${authSessionView.returnUrl}">https://demo-app/callback</code>
+        </div>
+    </section>
+</main>
+</body>
+</html>

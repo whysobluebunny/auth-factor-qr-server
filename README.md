@@ -38,7 +38,46 @@
 
 ```bash
 docker compose up -d
-````
+```
+
+По умолчанию приложение ожидает БД `auth_factor_qr` на `localhost:5432`
+с пользователем `auth_factor_qr` и паролем `auth_factor_qr`.
+
+Если у тебя локальный PostgreSQL уже запущен с другими реквизитами, можно не
+менять код, а переопределить datasource через переменные окружения:
+
+```bash
+export SPRING_DATASOURCE_URL='jdbc:postgresql://localhost:5432/<db_name>'
+export SPRING_DATASOURCE_USERNAME='<db_user>'
+export SPRING_DATASOURCE_PASSWORD='<db_password>'
+```
+
+## Dev-профиль
+
+Для локальной разработки можно использовать профиль `dev`: он автоматически
+поднимет временный PostgreSQL через Testcontainers при старте приложения.
+
+```bash
+export SPRING_PROFILES_ACTIVE=dev
+./gradlew bootRun
+```
+
+Нужен установленный Docker. Контейнер базы создаётся автоматически на запуске
+приложения и не требует ручного создания `role` или `database`.
+Схема в `dev`-профиле создаётся автоматически через Hibernate.
+
+В `dev`-профиле также подставляются локальные значения для:
+- `AUTH_FACTOR_MASTER_KEY_BASE64`
+- `AUTH_FACTOR_API_KEY`
+
+Для запросов к API в этом профиле используй заголовок:
+
+```text
+X-Auth-Factor-Api-Key: dev-api-key
+```
+
+Если нужен именно постоянный локальный PostgreSQL, можно по-прежнему использовать
+`docker compose up -d` и обычный профиль `default`, где используется Flyway.
 
 ## Переменная с master key
 
@@ -151,4 +190,3 @@ export AUTH_FACTOR_API_KEY='<your_api_key>'
 ### Просмотр аудита
 
 `GET /api/v1/audit-events?externalUserId=user123&limit=20`
-

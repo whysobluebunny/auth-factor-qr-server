@@ -1,14 +1,8 @@
 package ru.mephi.abondarenko.auth.factor.qr.service
 
-import tools.jackson.databind.json.JsonMapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import ru.mephi.abondarenko.auth.factor.qr.api.dto.ChallengeQrPayload
-import ru.mephi.abondarenko.auth.factor.qr.api.dto.CreateChallengeRequest
-import ru.mephi.abondarenko.auth.factor.qr.api.dto.CreateChallengeResponse
-import ru.mephi.abondarenko.auth.factor.qr.api.dto.ResponseQrPayload
-import ru.mephi.abondarenko.auth.factor.qr.api.dto.SessionInfoResponse
-import ru.mephi.abondarenko.auth.factor.qr.api.dto.VerifyQrResponseResult
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.*
 import ru.mephi.abondarenko.auth.factor.qr.api.error.BadRequestException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.ConflictException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.NotFoundException
@@ -24,6 +18,7 @@ import ru.mephi.abondarenko.auth.factor.qr.repository.RegisteredDeviceRepository
 import ru.mephi.abondarenko.auth.factor.qr.service.crypto.RandomTokenService
 import ru.mephi.abondarenko.auth.factor.qr.service.crypto.SecretCryptoService
 import ru.mephi.abondarenko.auth.factor.qr.service.totp.TotpService
+import tools.jackson.databind.json.JsonMapper
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Clock
@@ -203,6 +198,21 @@ class AuthSessionService(
             attemptCount = session.attemptCount,
             maxAttempts = session.maxAttempts
         )
+    }
+
+    @Transactional(readOnly = true)
+    fun getChallengePayloadRaw(sessionId: java.util.UUID): String {
+        val session = authSessionRepository.findById(sessionId)
+            .orElseThrow { NotFoundException("Auth session $sessionId not found") }
+
+        val qrPayload = ChallengeQrPayload(
+            sessionId = session.id,
+            challenge = session.challenge,
+            serviceId = properties.serviceId,
+            timestamp = session.createdAt.epochSecond
+        )
+
+        return objectMapper.writeValueAsString(qrPayload)
     }
 
     private fun enforceChallengeRateLimit(externalUserId: String, deviceId: java.util.UUID) {

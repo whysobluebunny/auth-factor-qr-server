@@ -29,6 +29,7 @@ app:
     allow-duplicate-device-labels: false
     auth-session-retention: 10m
     auth-session-cleanup-interval: 1h
+    debug-ui-enabled: true
     master-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
     api-key-header-name: X-Auth-Factor-Api-Key
     api-key: test-api-key

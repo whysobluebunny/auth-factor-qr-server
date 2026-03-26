@@ -21,6 +21,7 @@ data class AuthFactorProperties(
     var allowDuplicateDeviceLabels: Boolean = false,
     var authSessionRetention: Duration = Duration.ofDays(7),
     var authSessionCleanupInterval: Duration = Duration.ofMinutes(15),
+    var debugUiEnabled: Boolean = false,
     var masterKeyBase64: String = "",
     var apiKeyHeaderName: String = "X-Auth-Factor-Api-Key",
     var apiKey: String = ""
