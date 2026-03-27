@@ -9,6 +9,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.service.EnrollmentService
+import java.util.UUID
 
 @Controller
 @RequestMapping("/ui")
@@ -18,9 +19,21 @@ class HostedEnrollmentController(
 ) {
 
     @GetMapping("/enrollments")
-    fun enrollmentPage(model: Model): String {
+    fun enrollmentPage(
+        @RequestParam(required = false) externalUserId: String?,
+        @RequestParam(required = false) displayName: String?,
+        @RequestParam(required = false) returnUrl: String?,
+        model: Model
+    ): String {
         if (!model.containsAttribute("form")) {
-            model.addAttribute("form", HostedEnrollmentForm())
+            model.addAttribute(
+                "form",
+                HostedEnrollmentForm(
+                    externalUserId = externalUserId ?: "",
+                    displayName = displayName,
+                    returnUrl = returnUrl
+                )
+            )
         }
         if (!model.containsAttribute("confirmForm")) {
             model.addAttribute("confirmForm", HostedEnrollmentConfirmForm())
@@ -42,7 +55,7 @@ class HostedEnrollmentController(
             StartEnrollmentRequest(
                 externalUserId = form.externalUserId,
                 displayName = form.displayName,
-                deviceLabel = form.deviceLabel
+                deviceLabel = "pending-device-${UUID.randomUUID().toString().take(8)}"
             )
         )
 
@@ -58,7 +71,8 @@ class HostedEnrollmentController(
                 digits = response.qrPayload.digits,
                 algorithm = ru.mephi.abondarenko.auth.factor.qr.domain.TotpAlgorithm.valueOf(response.qrPayload.algorithm),
                 qrPayloadRaw = response.qrPayloadRaw,
-                qrCodeDataUrl = qrCodeRenderingService.renderDataUrl(response.qrPayloadRaw)
+                qrCodeDataUrl = qrCodeRenderingService.renderDataUrl(response.qrPayloadRaw),
+                returnUrl = form.returnUrl
             )
         )
         model.addAttribute("confirmForm", HostedEnrollmentConfirmForm(deviceId = response.deviceId))

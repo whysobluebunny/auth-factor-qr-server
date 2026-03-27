@@ -102,6 +102,7 @@ class ApiSecurityIntegrationTest : AbstractIntegrationTest() {
                         DeviceEnrollmentConfirmRequest(
                             deviceId = enrollment.deviceId,
                             enrollmentToken = enrollment.qrPayload.enrollmentToken,
+                            deviceLabel = "Phone",
                             totpCode = enrollmentCode
                         )
                     )

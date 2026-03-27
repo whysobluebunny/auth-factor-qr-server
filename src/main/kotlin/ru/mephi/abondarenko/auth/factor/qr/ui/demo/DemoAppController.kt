@@ -7,7 +7,11 @@ import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.validation.BindingResult
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.servlet.mvc.support.RedirectAttributes
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.CreateChallengeRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceInfoResponse
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.RevokeDeviceRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.error.NotFoundException
 import ru.mephi.abondarenko.auth.factor.qr.domain.DeviceStatus
 import ru.mephi.abondarenko.auth.factor.qr.domain.SessionStatus
 import ru.mephi.abondarenko.auth.factor.qr.service.AuthSessionService
@@ -17,7 +21,7 @@ import java.time.Instant
 import java.util.*
 
 @Controller
-@ConditionalOnProperty(prefix = "app.auth-factor", name = ["debug-ui-enabled"], havingValue = "true")
+@ConditionalOnProperty(prefix = "app.auth-factor", name = ["demo-ui-enabled"], havingValue = "true")
 @RequestMapping("/demo")
 class DemoAppController(
     private val enrollmentService: EnrollmentService,
@@ -57,13 +61,12 @@ class DemoAppController(
             return "ui/demo/login"
         }
 
-        val activeDevices = enrollmentService.listDevices(form.username)
-            .filter { it.deviceStatus == DeviceStatus.ACTIVE }
+        val activeDevices = activeDevices(form.username)
 
         if (activeDevices.isEmpty()) {
-            model.addAttribute("errorMessage", "No active 2FA device found for this user. Enroll a device first.")
-            model.addAttribute("enrollmentUrl", "/ui/enrollments")
-            return "ui/demo/login"
+            session.setAttribute("demo.authenticated.username", form.username)
+            session.setAttribute("demo.authenticated.secondFactorConfigured", false)
+            return "redirect:/demo/home"
         }
 
         val challenge = authSessionService.createChallenge(
@@ -102,6 +105,7 @@ class DemoAppController(
         }
 
         session.setAttribute("demo.authenticated.username", pendingUsername)
+        session.setAttribute("demo.authenticated.secondFactorConfigured", true)
         session.removeAttribute("demo.pending.username")
         session.removeAttribute("demo.pending.sessionId")
         return "redirect:/demo/home"
@@ -114,8 +118,40 @@ class DemoAppController(
             return "redirect:/demo/login"
         }
 
-        model.addAttribute("username", username)
+        val devices = visibleDevices(username)
+        val secondFactorConfigured = devices.any { it.deviceStatus == DeviceStatus.ACTIVE }
+        session.setAttribute("demo.authenticated.secondFactorConfigured", secondFactorConfigured)
+        model.addAttribute(
+            "home",
+            DemoHomeViewModel(
+                username = username,
+                secondFactorConfigured = secondFactorConfigured,
+                enrollmentUrl = "/ui/enrollments?externalUserId=$username&displayName=$username&returnUrl=/demo/home",
+                devices = devices
+            )
+        )
         return "ui/demo/home"
+    }
+
+    @PostMapping("/devices/{deviceId}/revoke")
+    fun revokeDevice(
+        @PathVariable deviceId: UUID,
+        session: HttpSession,
+        redirectAttributes: RedirectAttributes
+    ): String {
+        val username = session.getAttribute("demo.authenticated.username") as String?
+            ?: return "redirect:/demo/login"
+
+        val result = enrollmentService.revokeDevice(
+            deviceId = deviceId,
+            request = RevokeDeviceRequest(externalUserId = username)
+        )
+
+        redirectAttributes.addFlashAttribute(
+            "deviceActionMessage",
+            "Device ${result.deviceId} has been moved to ${result.deviceStatus}"
+        )
+        return "redirect:/demo/home"
     }
 
     @PostMapping("/logout")
@@ -123,4 +159,16 @@ class DemoAppController(
         session.invalidate()
         return "redirect:/demo/login"
     }
+
+    private fun activeDevices(externalUserId: String) =
+        visibleDevices(externalUserId)
+            .filter { it.deviceStatus == DeviceStatus.ACTIVE }
+
+    private fun visibleDevices(externalUserId: String): List<DeviceInfoResponse> =
+        try {
+            enrollmentService.listDevices(externalUserId)
+                .filter { it.deviceStatus != DeviceStatus.REVOKED }
+        } catch (_: NotFoundException) {
+            emptyList()
+        }
 }

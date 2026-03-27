@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
+import jakarta.validation.constraints.Size
 import java.util.UUID
 
 data class EnrollmentQrPayload(
@@ -88,6 +89,11 @@ data class DeviceEnrollmentConfirmRequest(
     @JsonProperty("enrollment_token")
     @field:NotBlank
     val enrollmentToken: String,
+
+    @JsonProperty("device_label")
+    @field:NotBlank
+    @field:Size(max = 255)
+    val deviceLabel: String,
 
     @JsonProperty("totp_code")
     @field:Pattern(regexp = "^[0-9]{6,8}$")

@@ -43,6 +43,7 @@ class HostedDeviceSimulatorController(
                     deviceId = deviceId,
                     sessionId = sessionId,
                     enrollmentToken = enrollmentToken ?: "",
+                    deviceLabel = "Demo Phone",
                     challengePayloadRaw = sessionId?.let(authSessionService::getChallengePayloadRaw) ?: "",
                     digits = 6,
                     period = 30,
@@ -78,6 +79,7 @@ class HostedDeviceSimulatorController(
                 DeviceEnrollmentConfirmRequest(
                     deviceId = form.deviceId,
                     enrollmentToken = form.enrollmentToken,
+                    deviceLabel = form.deviceLabel,
                     totpCode = currentTotpCode
                 )
             )

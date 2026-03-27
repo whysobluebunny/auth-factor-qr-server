@@ -139,11 +139,20 @@ class EnrollmentService(
                 throw NotFoundException("Enrollment confirmation context not found")
             }
 
+        val existingDevices = registeredDeviceRepository.findAllByUserExternalUserIdOrderByCreatedAtDesc(device.user.externalUserId)
+        deviceManagementPolicyService.enforceDeviceLabelPolicy(
+            user = device.user,
+            deviceLabel = request.deviceLabel,
+            existingDevices = existingDevices,
+            excludeDeviceId = device.id
+        )
+
         return confirmEnrollmentInternal(
             device = device,
             totpCode = request.totpCode,
             requireDeviceToken = true,
-            suppliedToken = request.enrollmentToken
+            suppliedToken = request.enrollmentToken,
+            deviceLabel = request.deviceLabel
         )
     }
 
@@ -151,7 +160,8 @@ class EnrollmentService(
         device: RegisteredDevice,
         totpCode: String,
         requireDeviceToken: Boolean,
-        suppliedToken: String?
+        suppliedToken: String?,
+        deviceLabel: String? = null
     ): ConfirmEnrollmentResponse {
         val now = Instant.now(clock)
 
@@ -226,6 +236,9 @@ class EnrollmentService(
             throw BadRequestException("Provided TOTP code is invalid")
         }
 
+        if (!deviceLabel.isNullOrBlank()) {
+            device.deviceLabel = deviceLabel
+        }
         device.status = DeviceStatus.ACTIVE
         device.confirmedAt = now
         device.enrollmentTokenHash = null

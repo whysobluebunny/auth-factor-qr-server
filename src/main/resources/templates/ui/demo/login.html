@@ -5,21 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Demo Login | Auth Factor QR</title>
     <link rel="stylesheet" th:href="@{/ui/app.css}">
+    <link rel="stylesheet" th:href="@{/ui/demo.css}">
 </head>
-<body>
+<body class="demo-app">
 <main class="page">
     <section class="panel">
         <div class="eyebrow">Demo Relying Party</div>
         <h1>Login</h1>
-        <p class="lead">Use <code>demo-user / password</code> or <code>alice / password</code>. The demo app will create
-            a challenge and redirect into the hosted second-factor flow.</p>
+        <p class="lead">Use <code>demo-user / password</code> or <code>alice / password</code>. Users with a linked
+            second-factor device will continue into the hosted 2FA flow. Users without one can register it from inside
+            the demo application after login.</p>
 
         <div class="message error" th:if="${errorMessage != null}" th:text="${errorMessage}">Invalid credentials</div>
-        <div class="message info" th:if="${enrollmentUrl != null}">
-            Open device enrollment here:
-            <a th:href="${enrollmentUrl}">Hosted Enrollment</a>
-        </div>
-
         <form class="form-grid" method="post" th:action="@{/demo/login}" th:object="${form}">
             <label>
                 <span>Username</span>
@@ -29,7 +26,7 @@
                 <span>Password</span>
                 <input type="password" th:field="*{password}" placeholder="password">
             </label>
-            <button class="button primary full-width" type="submit">Login And Continue To 2FA</button>
+            <button class="button primary full-width" type="submit">Login</button>
         </form>
     </section>
 </main>

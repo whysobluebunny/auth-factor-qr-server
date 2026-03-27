@@ -15,27 +15,40 @@ class DeviceManagementPolicyService(
     private val properties: AuthFactorProperties
 ) {
 
-    fun enforceEnrollmentPolicy(user: AppUser, deviceLabel: String, existingDevices: List<RegisteredDevice>) {
+    fun enforceEnrollmentPolicy(user: AppUser, deviceLabel: String?, existingDevices: List<RegisteredDevice>) {
         val activeDevices = existingDevices.count { it.status == DeviceStatus.ACTIVE }
         val pendingDevices = existingDevices.count { it.status == DeviceStatus.PENDING }
 
         if (activeDevices >= properties.maxActiveDevicesPerUser) {
             rejectPolicy(
                 externalUserId = user.externalUserId,
-                details = "Active device limit exceeded for deviceLabel=$deviceLabel"
+                details = "Active device limit exceeded for deviceLabel=${deviceLabel ?: "<pending>"}"
             )
         }
 
         if (pendingDevices >= properties.maxPendingDevicesPerUser) {
             rejectPolicy(
                 externalUserId = user.externalUserId,
-                details = "Pending device limit exceeded for deviceLabel=$deviceLabel"
+                details = "Pending device limit exceeded for deviceLabel=${deviceLabel ?: "<pending>"}"
             )
         }
 
+        if (!deviceLabel.isNullOrBlank()) {
+            enforceDeviceLabelPolicy(user, deviceLabel, existingDevices)
+        }
+    }
+
+    fun enforceDeviceLabelPolicy(
+        user: AppUser,
+        deviceLabel: String,
+        existingDevices: List<RegisteredDevice>,
+        excludeDeviceId: java.util.UUID? = null
+    ) {
         if (!properties.allowDuplicateDeviceLabels) {
             val duplicateLabelExists = existingDevices.any {
-                it.status != DeviceStatus.REVOKED && it.deviceLabel.equals(deviceLabel, ignoreCase = true)
+                it.id != excludeDeviceId &&
+                    it.status != DeviceStatus.REVOKED &&
+                    it.deviceLabel.equals(deviceLabel, ignoreCase = true)
             }
 
             if (duplicateLabelExists) {

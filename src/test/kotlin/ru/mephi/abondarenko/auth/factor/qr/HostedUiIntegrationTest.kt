@@ -8,6 +8,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ChallengeQrPayload
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
@@ -53,10 +54,9 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
             post("/ui/enrollments")
                 .param("externalUserId", "ui-user-001")
                 .param("displayName", "UI User")
-                .param("deviceLabel", "Pixel 8")
         )
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Enrollment Result")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Enrollment Session")))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("ui-user-001")))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("data:image/png;base64")))
     }
@@ -138,6 +138,30 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
 
     @Test
     fun `should complete redirect based demo flow`() {
+        val loginResult = mockMvc.perform(
+            post("/demo/login")
+                .param("username", "demo-user")
+                .param("password", "password")
+        )
+            .andExpect(status().is3xxRedirection)
+            .andReturn()
+
+        val redirectUrl = loginResult.response.redirectedUrl!!
+        val demoSession = loginResult.request.session as MockHttpSession
+        org.assertj.core.api.Assertions.assertThat(redirectUrl).isEqualTo("/demo/home")
+
+        mockMvc.perform(
+            get("/demo/home")
+                .session(demoSession)
+        )
+            .andExpect(status().isOk)
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Signed In")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("demo-user")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Register Device For Second Factor")))
+    }
+
+    @Test
+    fun `should redirect enrolled demo user into hosted 2fa flow`() {
         val enrollment = enrollmentService.startEnrollment(
             StartEnrollmentRequest(
                 externalUserId = "demo-user",
@@ -221,7 +245,90 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
                 .session(demoSession)
         )
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Signed In")))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("demo-user")))
+    }
+
+    @Test
+    fun `should refresh demo home after device enrollment in same session`() {
+        val loginResult = mockMvc.perform(
+            post("/demo/login")
+                .param("username", "alice")
+                .param("password", "password")
+        )
+            .andExpect(status().is3xxRedirection)
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/demo/home"))
+            .andReturn()
+
+        val demoSession = loginResult.request.session as MockHttpSession
+
+        val enrollment = enrollmentService.startEnrollment(
+            StartEnrollmentRequest(
+                externalUserId = "alice",
+                displayName = "alice",
+                deviceLabel = "Alice Phone"
+            )
+        )
+
+        val enrollmentCode = totpService.generate(
+            secretBase32 = enrollment.qrPayload.secret,
+            timestamp = Instant.now(clock),
+            digits = enrollment.qrPayload.digits,
+            periodSeconds = enrollment.qrPayload.period,
+            algorithm = TotpAlgorithm.valueOf(enrollment.qrPayload.algorithm)
+        )
+
+        enrollmentService.confirmEnrollment(
+            ConfirmEnrollmentRequest(
+                deviceId = enrollment.deviceId,
+                totpCode = enrollmentCode
+            )
+        )
+
+        mockMvc.perform(
+            get("/demo/home")
+                .session(demoSession)
+        )
+            .andExpect(status().isOk)
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Second Factor Ready")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Registered Second-Factor Devices")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Alice Phone")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("ACTIVE")))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("Add New Device")))
+    }
+
+    @Test
+    fun `should allow revoking pending device from demo home`() {
+        val loginResult = mockMvc.perform(
+            post("/demo/login")
+                .param("username", "alice")
+                .param("password", "password")
+        )
+            .andExpect(status().is3xxRedirection)
+            .andExpect(redirectedUrl("/demo/home"))
+            .andReturn()
+
+        val demoSession = loginResult.request.session as MockHttpSession
+
+        val enrollment = enrollmentService.startEnrollment(
+            StartEnrollmentRequest(
+                externalUserId = "alice",
+                displayName = "alice",
+                deviceLabel = "Pending Device"
+            )
+        )
+
+        mockMvc.perform(
+            post("/demo/devices/${enrollment.deviceId}/revoke")
+                .session(demoSession)
+        )
+            .andExpect(status().is3xxRedirection)
+            .andExpect(redirectedUrl("/demo/home"))
+
+        mockMvc.perform(
+            get("/demo/home")
+                .session(demoSession)
+        )
+            .andExpect(status().isOk)
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Pending Device"))))
     }
 }

@@ -24,6 +24,7 @@ data class AuthFactorProperties(
     var enrollmentTokenTtl: Duration = Duration.ofMinutes(10),
     var deviceResponseTokenTtl: Duration = Duration.ofMinutes(2),
     var debugUiEnabled: Boolean = false,
+    var demoUiEnabled: Boolean = false,
     var masterKeyBase64: String = "",
     var apiKeyHeaderName: String = "X-Auth-Factor-Api-Key",
     var apiKey: String = ""

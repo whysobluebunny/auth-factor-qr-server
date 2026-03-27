@@ -18,9 +18,8 @@ data class HostedEnrollmentForm(
     @field:Size(max = 255)
     val displayName: String? = null,
 
-    @field:NotBlank
-    @field:Size(max = 255)
-    val deviceLabel: String = ""
+    @field:Size(max = 1024)
+    val returnUrl: String? = null
 )
 
 data class HostedChallengeForm(
@@ -56,7 +55,8 @@ data class HostedEnrollmentViewModel(
     val digits: Int,
     val algorithm: TotpAlgorithm,
     val qrPayloadRaw: String,
-    val qrCodeDataUrl: String
+    val qrCodeDataUrl: String,
+    val returnUrl: String?
 )
 
 data class HostedEnrollmentConfirmForm(
@@ -95,6 +95,9 @@ data class HostedDeviceSimulatorForm(
 
     @field:Size(max = 1024)
     val enrollmentToken: String = "",
+
+    @field:Size(max = 255)
+    val deviceLabel: String = "",
 
     @field:Size(max = 4096)
     val challengePayloadRaw: String = "",

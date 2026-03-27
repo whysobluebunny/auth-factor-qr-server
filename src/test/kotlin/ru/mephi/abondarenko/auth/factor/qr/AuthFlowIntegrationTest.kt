@@ -119,6 +119,7 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
             DeviceEnrollmentConfirmRequest(
                 deviceId = enrollment.deviceId,
                 enrollmentToken = enrollment.qrPayload.enrollmentToken,
+                deviceLabel = "Android Device",
                 totpCode = enrollmentCode
             )
         )
