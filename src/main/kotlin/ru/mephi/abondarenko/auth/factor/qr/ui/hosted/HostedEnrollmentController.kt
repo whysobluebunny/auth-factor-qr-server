@@ -7,9 +7,8 @@ import org.springframework.validation.BindingResult
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.mvc.support.RedirectAttributes
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
-import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.error.ApiException
 import ru.mephi.abondarenko.auth.factor.qr.service.EnrollmentService
-import java.util.UUID
 
 @Controller
 @RequestMapping("/ui")
@@ -23,6 +22,7 @@ class HostedEnrollmentController(
         @RequestParam(required = false) externalUserId: String?,
         @RequestParam(required = false) displayName: String?,
         @RequestParam(required = false) returnUrl: String?,
+        @ModelAttribute("startErrorMessage") startErrorMessage: String?,
         model: Model
     ): String {
         if (!model.containsAttribute("form")) {
@@ -38,6 +38,9 @@ class HostedEnrollmentController(
         if (!model.containsAttribute("confirmForm")) {
             model.addAttribute("confirmForm", HostedEnrollmentConfirmForm())
         }
+        if (!startErrorMessage.isNullOrBlank()) {
+            model.addAttribute("startErrorMessage", startErrorMessage)
+        }
         return "ui/hosted/enrollment"
     }
 
@@ -51,13 +54,15 @@ class HostedEnrollmentController(
             return "ui/hosted/enrollment"
         }
 
-        val response = enrollmentService.startEnrollment(
-            StartEnrollmentRequest(
+        val response = try {
+            enrollmentService.startOrResumeHostedEnrollment(
                 externalUserId = form.externalUserId,
-                displayName = form.displayName,
-                deviceLabel = "pending-device-${UUID.randomUUID().toString().take(8)}"
+                displayName = form.displayName
             )
-        )
+        } catch (ex: ApiException) {
+            model.addAttribute("startErrorMessage", ex.message)
+            return "ui/hosted/enrollment"
+        }
 
         model.addAttribute(
             "enrollment",
@@ -99,12 +104,18 @@ class HostedEnrollmentController(
             return "redirect:/ui/enrollments"
         }
 
-        val result = enrollmentService.confirmEnrollment(
-            ConfirmEnrollmentRequest(
-                deviceId = form.deviceId!!,
-                totpCode = form.totpCode
+        val result = try {
+            enrollmentService.confirmEnrollment(
+                ConfirmEnrollmentRequest(
+                    deviceId = form.deviceId!!,
+                    totpCode = form.totpCode
+                )
             )
-        )
+        } catch (ex: ApiException) {
+            redirectAttributes.addFlashAttribute("confirmErrorMessage", ex.message)
+            redirectAttributes.addFlashAttribute("confirmForm", form)
+            return "redirect:/ui/enrollments"
+        }
 
         redirectAttributes.addFlashAttribute(
             "confirmMessage",

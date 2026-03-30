@@ -5,23 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Enrollment | Auth Factor QR</title>
     <link rel="stylesheet" th:href="@{/ui/app.css}">
+    <script th:if="${uiDebugEnabled}">
+        (() => {
+            document.documentElement.classList.add('debug-toggle-supported');
+            if (window.localStorage.getItem('auth-factor-debug-hidden') === 'true') {
+                document.documentElement.classList.add('debug-hidden');
+            }
+        })();
+    </script>
 </head>
-<body>
+<body class="enrollment-page">
 <main class="page">
     <section class="panel">
-        <div class="eyebrow">Hosted 2FA UI</div>
-        <h1>Device Enrollment</h1>
-        <p class="lead">This hosted page belongs to the second-factor service and presents the enrollment QR created by
-            the relying application for the current user.</p>
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Hosted 2FA UI</div>
+                <h1>Device Enrollment</h1>
+                <p class="lead">This hosted page belongs to the second-factor service and presents the enrollment QR created by
+                    the relying application for the current user.</p>
+            </div>
+            <button class="button ghost debug-toggle" th:if="${uiDebugEnabled}" type="button" id="debug-toggle-button">
+                Hide Debug UI
+            </button>
+        </div>
 
         <div class="message success" th:if="${confirmMessage != null}" th:text="${confirmMessage}">Enrollment
             confirmed.
         </div>
+        <div class="message error" th:if="${startErrorMessage != null}" th:text="${startErrorMessage}">Unable to start enrollment.</div>
         <div class="message error" th:if="${confirmErrorMessage != null}" th:text="${confirmErrorMessage}">Invalid TOTP
             code.
         </div>
 
-        <form class="form-grid" th:if="${uiDebugEnabled}" method="post" th:action="@{/ui/enrollments}" th:object="${form}">
+        <form class="form-grid debug-only" th:if="${uiDebugEnabled}" method="post" th:action="@{/ui/enrollments}" th:object="${form}">
             <label>
                 <span>External User ID</span>
                 <input type="text" th:field="*{externalUserId}" placeholder="user123">
@@ -34,6 +50,10 @@
             <button class="button primary full-width" type="submit">Start Enrollment</button>
         </form>
 
+        <div class="message info prod-only" th:if="${uiDebugEnabled}">
+            The enrollment context is created by the relying application. This page only displays the QR and guides the
+            user through device setup.
+        </div>
         <div class="message info" th:unless="${uiDebugEnabled}">
             The enrollment context is created by the relying application. This page only displays the QR and guides the
             user through device setup.
@@ -41,51 +61,53 @@
     </section>
 
     <section class="panel" th:if="${enrollment != null}">
-        <div class="hero-grid">
+        <div class="section-head">
             <div>
-                <div class="section-head">
-                    <div>
-                        <div class="eyebrow">Enrollment Session</div>
-                        <h2 th:text="${enrollment.externalUserId}">user123</h2>
-                    </div>
-                </div>
-
-                <div class="meta-grid">
-                    <div th:if="${uiDebugEnabled}">
-                        <span class="meta-label">Device ID</span>
-                        <code th:text="${enrollment.deviceId}">uuid</code>
-                    </div>
-                    <div>
-                        <span class="meta-label">Status</span>
-                        <strong th:text="${enrollment.deviceStatus}">PENDING</strong>
-                    </div>
-                    <div th:if="${uiDebugEnabled}">
-                        <span class="meta-label">Secret</span>
-                        <code th:text="${enrollment.secret}">BASE32SECRET</code>
-                    </div>
-                    <div th:if="${uiDebugEnabled}">
-                        <span class="meta-label">Enrollment Token</span>
-                        <code th:text="${enrollment.enrollmentToken}">token</code>
-                    </div>
-                    <div th:if="${uiDebugEnabled}">
-                        <span class="meta-label">TOTP Params</span>
-                        <strong th:text="${enrollment.digits + ' digits / ' + enrollment.period + 's / ' + enrollment.algorithm}">6
-                            digits / 30s / SHA1</strong>
-                    </div>
-                </div>
-
-                <div class="qr-layout">
-                    <div class="qr-card">
-                        <img alt="Enrollment QR" th:src="${enrollment.qrCodeDataUrl}">
-                    </div>
-                    <div th:if="${uiDebugEnabled}">
-                        <span class="meta-label">Payload</span>
-                        <textarea class="payload" readonly th:text="${enrollment.qrPayloadRaw}"></textarea>
-                    </div>
-                </div>
+                <div class="eyebrow">Enrollment Session</div>
+                <h2 th:text="${enrollment.externalUserId}">user123</h2>
             </div>
+        </div>
 
-            <aside class="stack">
+        <div class="meta-grid">
+            <div class="debug-only" th:if="${uiDebugEnabled}">
+                <span class="meta-label">Device ID</span>
+                <code th:text="${enrollment.deviceId}">uuid</code>
+            </div>
+            <div>
+                <span class="meta-label">Status</span>
+                <strong th:text="${enrollment.deviceStatus}">PENDING</strong>
+            </div>
+            <div class="debug-only" th:if="${uiDebugEnabled}">
+                <span class="meta-label">Secret</span>
+                <code th:text="${enrollment.secret}">BASE32SECRET</code>
+            </div>
+            <div class="debug-only" th:if="${uiDebugEnabled}">
+                <span class="meta-label">Enrollment Token</span>
+                <code th:text="${enrollment.enrollmentToken}">token</code>
+            </div>
+            <div class="debug-only" th:if="${uiDebugEnabled}">
+                <span class="meta-label">TOTP Params</span>
+                <strong th:text="${enrollment.digits + ' digits / ' + enrollment.period + 's / ' + enrollment.algorithm}">6
+                    digits / 30s / SHA1</strong>
+            </div>
+        </div>
+
+        <div class="auth-flow-grid enrollment-flow">
+            <section class="callout">
+                <div class="eyebrow">Enrollment QR</div>
+                <h2>Scan This Code On Your Device</h2>
+                <p class="lead">Open the second-factor app on your device and scan this QR to register it for future
+                    sign-in confirmation.</p>
+                <div class="qr-card auth-challenge-card">
+                    <img alt="Enrollment QR" th:src="${enrollment.qrCodeDataUrl}">
+                </div>
+                <div class="debug-payload debug-only" th:if="${uiDebugEnabled}">
+                    <span class="meta-label">Payload</span>
+                    <textarea class="payload" readonly th:text="${enrollment.qrPayloadRaw}"></textarea>
+                </div>
+            </section>
+
+            <aside class="stack enrollment-side">
                 <section class="callout">
                     <div class="eyebrow">What To Do</div>
                     <h3>Open Your Device And Scan</h3>
@@ -93,13 +115,18 @@
                         own device name, and activate second-factor login for this account.</p>
                 </section>
 
+                <section class="callout prod-only" th:if="${uiDebugEnabled}">
+                    <div class="eyebrow">After Enrollment</div>
+                    <p>Once the device confirms enrollment, return to the relying application and sign in again to test
+                        the hosted second-factor flow.</p>
+                </section>
                 <section class="callout" th:unless="${uiDebugEnabled}">
                     <div class="eyebrow">After Enrollment</div>
                     <p>Once the device confirms enrollment, return to the relying application and sign in again to test
                         the hosted second-factor flow.</p>
                 </section>
 
-                <form class="form-grid" th:if="${uiDebugEnabled}" method="post" th:action="@{/ui/enrollments/confirm}"
+                <form class="form-grid debug-only" th:if="${uiDebugEnabled}" method="post" th:action="@{/ui/enrollments/confirm}"
                       th:object="${confirmForm}">
                     <input type="hidden" th:field="*{deviceId}">
                     <label>
@@ -108,8 +135,8 @@
                     </label>
                     <button class="button primary" type="submit">Confirm Enrollment</button>
                     <a
+                            class="button ghost debug-only"
                             th:if="${uiDebugEnabled}"
-                            class="button ghost"
                             th:href="@{/ui/tools/device-simulator(deviceId=${enrollment.deviceId},enrollmentToken=${enrollment.enrollmentToken})}">
                         Open Device Simulator
                     </a>
@@ -122,5 +149,34 @@
         </div>
     </section>
 </main>
+<script th:if="${uiDebugEnabled}">
+    (() => {
+        const button = document.getElementById('debug-toggle-button');
+        if (!button) {
+            return;
+        }
+
+        const hidden = document.documentElement.classList.contains('debug-hidden');
+        button.textContent = hidden ? 'Enable Debug UI' : 'Hide Debug UI';
+
+        button.addEventListener('click', () => {
+            const nextHidden = !document.documentElement.classList.contains('debug-hidden');
+            window.localStorage.setItem('auth-factor-debug-hidden', String(nextHidden));
+            window.location.reload();
+        });
+    })();
+</script>
+<script>
+    (() => {
+        document.querySelectorAll('form.js-single-submit').forEach((form) => {
+            form.addEventListener('submit', () => {
+                const submit = form.querySelector('button[type="submit"]');
+                if (submit) {
+                    submit.disabled = true;
+                }
+            }, { once: true });
+        });
+    })();
+</script>
 </body>
 </html>

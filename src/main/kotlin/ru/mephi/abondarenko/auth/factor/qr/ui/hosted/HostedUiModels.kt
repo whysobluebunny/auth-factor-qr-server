@@ -121,5 +121,5 @@ data class HostedDeviceSimulatorViewModel(
     val enrollmentConfirmPayloadRaw: String?,
     val responsePayloadRaw: String?,
     val enrollmentSubmitUrl: String?,
-    val authResponseSubmitUrl: String?
+    val responseQrCodeDataUrl: String?
 )

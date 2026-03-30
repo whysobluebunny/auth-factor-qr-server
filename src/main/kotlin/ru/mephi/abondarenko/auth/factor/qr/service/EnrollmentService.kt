@@ -45,6 +45,44 @@ class EnrollmentService(
     private val clock: Clock
 ) {
 
+    @Transactional
+    fun startOrResumeHostedEnrollment(externalUserId: String, displayName: String?): StartEnrollmentResponse {
+        val user = userService.getOrCreate(externalUserId, displayName)
+        val existingDevices = registeredDeviceRepository.findAllByUserExternalUserIdOrderByCreatedAtDesc(user.externalUserId)
+        val pendingDevice = existingDevices.firstOrNull { it.status == DeviceStatus.PENDING }
+
+        if (pendingDevice != null) {
+            val enrollmentToken = randomTokenService.randomUrlSafeToken()
+            val now = Instant.now(clock)
+            pendingDevice.enrollmentTokenHash = sha256(enrollmentToken)
+            pendingDevice.enrollmentTokenExpiresAt = now.plus(properties.enrollmentTokenTtl)
+
+            auditLogService.logEvent(
+                eventType = AuditEventType.ENROLLMENT_STARTED,
+                outcome = AuditOutcome.SUCCESS,
+                externalUserId = user.externalUserId,
+                deviceId = pendingDevice.id,
+                details = "Existing pending enrollment resumed"
+            )
+
+            return buildStartEnrollmentResponse(
+                userId = user.id,
+                externalUserId = user.externalUserId,
+                device = pendingDevice,
+                secret = secretCryptoService.decrypt(pendingDevice.secretCiphertext, pendingDevice.secretNonce),
+                enrollmentToken = enrollmentToken
+            )
+        }
+
+        return startEnrollment(
+            StartEnrollmentRequest(
+                externalUserId = externalUserId,
+                displayName = displayName,
+                deviceLabel = "pending-device-${UUID.randomUUID().toString().take(8)}"
+            )
+        )
+    }
+
     @Transactional(readOnly = true)
     fun listDevices(externalUserId: String): List<DeviceInfoResponse> {
         userService.getByExternalUserId(externalUserId)
@@ -110,12 +148,12 @@ class EnrollmentService(
             details = "Enrollment started for deviceLabel=${device.deviceLabel}"
         )
 
-        return StartEnrollmentResponse(
+        return buildStartEnrollmentResponse(
             userId = user.id,
-            deviceId = device.id,
-            deviceStatus = device.status,
-            qrPayload = qrPayload,
-            qrPayloadRaw = objectMapper.writeValueAsString(qrPayload)
+            externalUserId = user.externalUserId,
+            device = device,
+            secret = secret,
+            enrollmentToken = enrollmentToken
         )
     }
 
@@ -269,6 +307,33 @@ class EnrollmentService(
         return MessageDigest.isEqual(
             expectedHash.toByteArray(StandardCharsets.UTF_8),
             actualHash.toByteArray(StandardCharsets.UTF_8)
+        )
+    }
+
+    private fun buildStartEnrollmentResponse(
+        userId: UUID,
+        externalUserId: String,
+        device: RegisteredDevice,
+        secret: String,
+        enrollmentToken: String
+    ): StartEnrollmentResponse {
+        val qrPayload = EnrollmentQrPayload(
+            serviceId = properties.serviceId,
+            userId = externalUserId,
+            deviceId = device.id.toString(),
+            secret = secret,
+            enrollmentToken = enrollmentToken,
+            period = device.periodSeconds,
+            digits = device.digits,
+            algorithm = device.algorithm.name
+        )
+
+        return StartEnrollmentResponse(
+            userId = userId,
+            deviceId = device.id,
+            deviceStatus = device.status,
+            qrPayload = qrPayload,
+            qrPayloadRaw = objectMapper.writeValueAsString(qrPayload)
         )
     }
 

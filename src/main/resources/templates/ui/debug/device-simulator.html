@@ -96,12 +96,15 @@
             <span class="meta-label">Device Auth Response Payload</span>
             <textarea class="payload" readonly th:text="${simulatorResult.responsePayloadRaw}"></textarea>
 
-            <button
-                    class="button primary full-width js-api-submit"
-                    type="button"
-                    th:attr="data-endpoint=${simulatorResult.authResponseSubmitUrl},data-payload=${simulatorResult.responsePayloadRaw}">
-                Submit Response To Device API
-            </button>
+            <div class="qr-layout" th:if="${simulatorResult.responseQrCodeDataUrl != null}">
+                <div class="qr-card">
+                    <img alt="Response QR" th:src="${simulatorResult.responseQrCodeDataUrl}">
+                </div>
+                <div class="message info">
+                    Show this QR code to the camera on the hosted authentication page to complete the second-factor
+                    flow through the target browser experience.
+                </div>
+            </div>
 
             <form
                     class="form-grid"

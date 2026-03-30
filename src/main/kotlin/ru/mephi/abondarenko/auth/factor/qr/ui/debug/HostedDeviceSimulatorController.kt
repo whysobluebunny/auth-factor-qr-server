@@ -24,6 +24,7 @@ import java.util.*
 class HostedDeviceSimulatorController(
     private val authSessionService: AuthSessionService,
     private val totpService: TotpService,
+    private val qrCodeRenderingService: ru.mephi.abondarenko.auth.factor.qr.ui.hosted.QrCodeRenderingService,
     private val objectMapper: JsonMapper,
     private val clock: Clock
 ) {
@@ -111,7 +112,7 @@ class HostedDeviceSimulatorController(
                 enrollmentConfirmPayloadRaw = enrollmentConfirmPayloadRaw,
                 responsePayloadRaw = responsePayloadRaw,
                 enrollmentSubmitUrl = if (enrollmentConfirmPayloadRaw != null) "/api/v1/device/enrollments/confirm" else null,
-                authResponseSubmitUrl = if (responsePayloadRaw != null) "/api/v1/device/auth/respond" else null
+                responseQrCodeDataUrl = responsePayloadRaw?.let(qrCodeRenderingService::renderDataUrl)
             )
         )
         return "ui/debug/device-simulator"

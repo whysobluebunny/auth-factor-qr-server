@@ -31,14 +31,14 @@
             </div>
 
             <div class="action-row">
-                <form th:if="${!home.secondFactorConfigured && home.enrollmentUrl != null}" method="post" th:action="@{/ui/enrollments}">
+                <form class="js-single-submit" th:if="${!home.secondFactorConfigured && home.enrollmentUrl != null}" method="post" th:action="@{/ui/enrollments}">
                     <input type="hidden" name="externalUserId" th:value="${home.username}">
                     <input type="hidden" name="displayName" th:value="${home.username}">
                     <input type="hidden" name="returnUrl" value="/demo/home">
                     <button class="button primary" type="submit">Register Device For Second Factor</button>
                 </form>
 
-                <form th:if="${home.secondFactorConfigured && home.enrollmentUrl != null}" method="post" th:action="@{/ui/enrollments}">
+                <form class="js-single-submit" th:if="${home.secondFactorConfigured && home.enrollmentUrl != null}" method="post" th:action="@{/ui/enrollments}">
                     <input type="hidden" name="externalUserId" th:value="${home.username}">
                     <input type="hidden" name="displayName" th:value="${home.username}">
                     <input type="hidden" name="returnUrl" value="/demo/home">
@@ -113,5 +113,17 @@
         </table>
     </section>
 </main>
+<script>
+    (() => {
+        document.querySelectorAll('form.js-single-submit').forEach((form) => {
+            form.addEventListener('submit', () => {
+                const submit = form.querySelector('button[type="submit"]');
+                if (submit) {
+                    submit.disabled = true;
+                }
+            }, { once: true });
+        });
+    })();
+</script>
 </body>
 </html>
