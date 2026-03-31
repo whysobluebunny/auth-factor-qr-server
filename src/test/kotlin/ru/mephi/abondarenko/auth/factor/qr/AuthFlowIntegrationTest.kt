@@ -64,7 +64,6 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
         val challenge = authSessionService.createChallenge(
             CreateChallengeRequest(
                 externalUserId = "user-002",
-                deviceId = enrollment.deviceId,
                 firstFactorRef = "login-attempt-1"
             )
         )
@@ -129,7 +128,6 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
         val challenge = authSessionService.createChallenge(
             CreateChallengeRequest(
                 externalUserId = "user-device-001",
-                deviceId = enrollment.deviceId,
                 firstFactorRef = "first-factor-device-flow"
             )
         )
@@ -185,8 +183,7 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
 
         val challenge = authSessionService.createChallenge(
             CreateChallengeRequest(
-                externalUserId = "user-003",
-                deviceId = enrollment.deviceId
+                externalUserId = "user-003"
             )
         )
 
@@ -231,7 +228,6 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
             authSessionService.createChallenge(
                 CreateChallengeRequest(
                     externalUserId = "user-rl-001",
-                    deviceId = enrollment.deviceId,
                     firstFactorRef = "challenge-$it"
                 )
             )
@@ -241,7 +237,6 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
             authSessionService.createChallenge(
                 CreateChallengeRequest(
                     externalUserId = "user-rl-001",
-                    deviceId = enrollment.deviceId,
                     firstFactorRef = "challenge-5"
                 )
             )
@@ -256,7 +251,6 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
             val challenge = authSessionService.createChallenge(
                 CreateChallengeRequest(
                     externalUserId = "user-rl-002",
-                    deviceId = enrollment.deviceId,
                     firstFactorRef = "verify-rate-limit-$it"
                 )
             )
@@ -277,7 +271,6 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
             val challenge = authSessionService.createChallenge(
                 CreateChallengeRequest(
                     externalUserId = "user-rl-002",
-                    deviceId = enrollment.deviceId,
                     firstFactorRef = "verify-rate-limit-3"
                 )
             )

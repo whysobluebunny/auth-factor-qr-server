@@ -89,7 +89,6 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
         val challenge = authSessionService.createChallenge(
             CreateChallengeRequest(
                 externalUserId = "ui-user-002",
-                deviceId = enrollment.deviceId,
                 firstFactorRef = "ui-auth-test"
             )
         )

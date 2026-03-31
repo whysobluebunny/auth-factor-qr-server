@@ -143,8 +143,7 @@ class EnrollmentFlowIntegrationTest : AbstractIntegrationTest() {
         assertThrows(ConflictException::class.java) {
             authSessionService.createChallenge(
                 CreateChallengeRequest(
-                    externalUserId = "user-005",
-                    deviceId = enrollment.deviceId
+                    externalUserId = "user-005"
                 )
             )
         }

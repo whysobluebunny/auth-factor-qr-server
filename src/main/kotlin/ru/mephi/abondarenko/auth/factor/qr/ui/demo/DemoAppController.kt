@@ -61,9 +61,7 @@ class DemoAppController(
             return "ui/demo/login"
         }
 
-        val activeDevices = activeDevices(form.username)
-
-        if (activeDevices.isEmpty()) {
+        if (activeDevices(form.username).isEmpty()) {
             session.setAttribute("demo.authenticated.username", form.username)
             session.setAttribute("demo.authenticated.secondFactorConfigured", false)
             return "redirect:/demo/home"
@@ -72,7 +70,6 @@ class DemoAppController(
         val challenge = authSessionService.createChallenge(
             CreateChallengeRequest(
                 externalUserId = form.username,
-                deviceId = activeDevices.first().deviceId,
                 firstFactorRef = "demo-login-${Instant.now(clock).epochSecond}"
             )
         )

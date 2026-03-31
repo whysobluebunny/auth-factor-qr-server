@@ -42,7 +42,6 @@ class HostedChallengeDebugController(
         val response = authSessionService.createChallenge(
             CreateChallengeRequest(
                 externalUserId = form.externalUserId,
-                deviceId = form.deviceId!!,
                 firstFactorRef = form.firstFactorRef
             )
         )

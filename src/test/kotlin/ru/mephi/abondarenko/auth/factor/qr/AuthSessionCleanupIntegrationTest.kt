@@ -66,7 +66,6 @@ class AuthSessionCleanupIntegrationTest : AbstractIntegrationTest() {
         val approvedSession = authSessionService.createChallenge(
             CreateChallengeRequest(
                 externalUserId = "cleanup-user-001",
-                deviceId = enrollment.deviceId,
                 firstFactorRef = "approved-session"
             )
         )
@@ -94,7 +93,6 @@ class AuthSessionCleanupIntegrationTest : AbstractIntegrationTest() {
         val obsoletePendingSession = authSessionService.createChallenge(
             CreateChallengeRequest(
                 externalUserId = "cleanup-user-001",
-                deviceId = enrollment.deviceId,
                 firstFactorRef = "obsolete-pending-session"
             )
         )
@@ -102,7 +100,6 @@ class AuthSessionCleanupIntegrationTest : AbstractIntegrationTest() {
         val recentSession = authSessionService.createChallenge(
             CreateChallengeRequest(
                 externalUserId = "cleanup-user-001",
-                deviceId = enrollment.deviceId,
                 firstFactorRef = "recent-session"
             )
         )

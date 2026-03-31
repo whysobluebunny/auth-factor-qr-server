@@ -27,9 +27,6 @@ data class HostedChallengeForm(
     @field:Size(max = 128)
     val externalUserId: String = "",
 
-    @field:NotNull
-    val deviceId: UUID? = null,
-
     @field:Size(max = 255)
     val firstFactorRef: String? = null,
 

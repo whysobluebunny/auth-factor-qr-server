@@ -24,9 +24,9 @@ class AuthSession(
     @JoinColumn(name = "user_id", nullable = false)
     var user: AppUser,
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "device_id", nullable = false)
-    var device: RegisteredDevice,
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "device_id")
+    var device: RegisteredDevice? = null,
 
     @Column(name = "challenge", nullable = false, unique = true, length = 128)
     var challenge: String,

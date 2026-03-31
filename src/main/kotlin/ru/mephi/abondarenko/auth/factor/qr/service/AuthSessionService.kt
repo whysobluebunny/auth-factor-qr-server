@@ -42,21 +42,21 @@ class AuthSessionService(
     @Transactional
     fun createChallenge(request: CreateChallengeRequest): CreateChallengeResponse {
         val user = userService.getByExternalUserId(request.externalUserId)
-        val device = registeredDeviceRepository.findByIdAndUserExternalUserId(request.deviceId, request.externalUserId)
-            ?: throw NotFoundException("Device ${request.deviceId} not found for user ${request.externalUserId}")
+        val activeDevices = registeredDeviceRepository
+            .findAllByUserExternalUserIdOrderByCreatedAtDesc(user.externalUserId)
+            .filter { it.status == DeviceStatus.ACTIVE }
 
-        enforceChallengeRateLimit(user.externalUserId, device.id)
-
-        if (device.status != DeviceStatus.ACTIVE) {
-            throw ConflictException("Device ${device.id} is not active")
+        if (activeDevices.isEmpty()) {
+            throw ConflictException("User ${request.externalUserId} does not have any active devices")
         }
+
+        enforceChallengeRateLimit(user.externalUserId)
 
         val now = Instant.now(clock)
         val deviceResponseToken = randomTokenService.randomUrlSafeToken()
         val session = authSessionRepository.save(
             AuthSession(
                 user = user,
-                device = device,
                 challenge = randomTokenService.randomUrlSafeToken(),
                 status = SessionStatus.PENDING,
                 firstFactorRef = request.firstFactorRef,
@@ -81,9 +81,8 @@ class AuthSessionService(
             eventType = AuditEventType.AUTH_CHALLENGE_CREATED,
             outcome = AuditOutcome.SUCCESS,
             externalUserId = user.externalUserId,
-            deviceId = device.id,
             sessionId = session.id,
-            details = "Authentication challenge created"
+            details = "Authentication challenge created for user with ${activeDevices.size} active device(s)"
         )
 
         return CreateChallengeResponse(
@@ -166,7 +165,7 @@ class AuthSessionService(
                 eventType = AuditEventType.AUTH_SESSION_EXPIRED,
                 outcome = AuditOutcome.FAILURE,
                 externalUserId = session.user.externalUserId,
-                deviceId = session.device.id,
+                deviceId = session.device?.id,
                 sessionId = session.id,
                 details = "Authentication session expired before verification"
             )
@@ -179,27 +178,28 @@ class AuthSessionService(
                 eventType = AuditEventType.AUTH_SESSION_BLOCKED,
                 outcome = AuditOutcome.FAILURE,
                 externalUserId = session.user.externalUserId,
-                deviceId = session.device.id,
+                deviceId = session.device?.id,
                 sessionId = session.id,
                 details = "Authentication session already blocked"
             )
             return session.toVerifyResult(approved = false)
         }
 
-        val device = session.device
-        enforceVerifyRateLimit(session.user.externalUserId, device.id, session.id)
-
         if (requireDeviceToken) {
             validateDeviceResponseToken(session, responseToken, now)
         }
 
+        val device = registeredDeviceRepository.findByIdAndUserExternalUserId(deviceId, session.user.externalUserId)
+            ?: return rejectAttempt(session, "Response device does not belong to the session user", deviceId)
+
+        enforceVerifyRateLimit(session.user.externalUserId, device.id, session.id)
+
         val timestampIsFresh = kotlin.math.abs(now.epochSecond - timestamp) <= properties.responseMaxAge.seconds
         val challengeMatches = session.challenge == challenge
-        val deviceMatches = device.id == deviceId
         val deviceActive = device.status == DeviceStatus.ACTIVE
 
-        if (!timestampIsFresh || !challengeMatches || !deviceMatches || !deviceActive) {
-            return rejectAttempt(session, "QR response validation failed before TOTP verification")
+        if (!timestampIsFresh || !challengeMatches || !deviceActive) {
+            return rejectAttempt(session, "QR response validation failed before TOTP verification", device.id)
         }
 
         val secret = secretCryptoService.decrypt(device.secretCiphertext, device.secretNonce)
@@ -216,9 +216,10 @@ class AuthSessionService(
         )
 
         if (!totpValid) {
-            return rejectAttempt(session, "Invalid TOTP in QR response")
+            return rejectAttempt(session, "Invalid TOTP in QR response", device.id)
         }
 
+        session.device = device
         session.status = SessionStatus.APPROVED
         session.verifiedAt = now
         session.deviceResponseToken = null
@@ -249,7 +250,7 @@ class AuthSessionService(
         return SessionInfoResponse(
             sessionId = session.id,
             userId = session.user.id,
-            deviceId = session.device.id,
+            deviceId = session.device?.id,
             status = session.status,
             createdAt = session.createdAt,
             expiresAt = session.expiresAt,
@@ -275,7 +276,7 @@ class AuthSessionService(
         return objectMapper.writeValueAsString(qrPayload)
     }
 
-    private fun enforceChallengeRateLimit(externalUserId: String, deviceId: java.util.UUID) {
+    private fun enforceChallengeRateLimit(externalUserId: String) {
         val allowed = rateLimitService.tryAcquire(
             key = "challenge:$externalUserId",
             limit = properties.challengeRateLimitRequests,
@@ -287,7 +288,6 @@ class AuthSessionService(
                 eventType = AuditEventType.AUTH_CHALLENGE_RATE_LIMITED,
                 outcome = AuditOutcome.FAILURE,
                 externalUserId = externalUserId,
-                deviceId = deviceId,
                 details = "Challenge rate limit exceeded"
             )
             throw TooManyRequestsException("Challenge rate limit exceeded for user $externalUserId")
@@ -314,7 +314,7 @@ class AuthSessionService(
         }
     }
 
-    private fun rejectAttempt(session: AuthSession, reason: String): VerifyQrResponseResult {
+    private fun rejectAttempt(session: AuthSession, reason: String, deviceId: java.util.UUID? = session.device?.id): VerifyQrResponseResult {
         session.attemptCount += 1
         val blocked = session.attemptCount >= session.maxAttempts
         if (blocked) {
@@ -325,7 +325,7 @@ class AuthSessionService(
             eventType = if (blocked) AuditEventType.AUTH_SESSION_BLOCKED else AuditEventType.AUTH_RESPONSE_REJECTED,
             outcome = AuditOutcome.FAILURE,
             externalUserId = session.user.externalUserId,
-            deviceId = session.device.id,
+            deviceId = deviceId,
             sessionId = session.id,
             details = reason
         )
@@ -357,7 +357,7 @@ class AuthSessionService(
                     eventType = AuditEventType.AUTH_DEVICE_TOKEN_REJECTED,
                     outcome = AuditOutcome.FAILURE,
                     externalUserId = session.user.externalUserId,
-                    deviceId = session.device.id,
+                    deviceId = session.device?.id,
                     sessionId = session.id,
                     details = "Device response token context is missing"
                 )
@@ -372,7 +372,7 @@ class AuthSessionService(
                 eventType = AuditEventType.AUTH_DEVICE_TOKEN_REJECTED,
                 outcome = AuditOutcome.FAILURE,
                 externalUserId = session.user.externalUserId,
-                deviceId = session.device.id,
+                deviceId = session.device?.id,
                 sessionId = session.id,
                 details = "Device response token expired"
             )
@@ -388,7 +388,7 @@ class AuthSessionService(
                 eventType = AuditEventType.AUTH_DEVICE_TOKEN_REJECTED,
                 outcome = AuditOutcome.FAILURE,
                 externalUserId = session.user.externalUserId,
-                deviceId = session.device.id,
+                deviceId = session.device?.id,
                 sessionId = session.id,
                 details = "Device response token mismatch"
             )
