@@ -14,6 +14,7 @@ spring:
 app:
   auth-factor:
     service-id: auth-factor-qr-test
+    public-base-url: http://localhost:8080
     otp-period: 30s
     otp-digits: 6
     allowed-clock-skew-steps: 1

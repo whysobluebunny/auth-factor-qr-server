@@ -14,6 +14,9 @@ data class EnrollmentQrPayload(
     @JsonProperty("service_id")
     val serviceId: String,
 
+    @JsonProperty("base_url")
+    val baseUrl: String,
+
     @JsonProperty("user_id")
     val userId: String,
 

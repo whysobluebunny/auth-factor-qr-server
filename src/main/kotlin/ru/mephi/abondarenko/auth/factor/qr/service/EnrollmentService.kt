@@ -131,6 +131,7 @@ class EnrollmentService(
 
         val qrPayload = EnrollmentQrPayload(
             serviceId = properties.serviceId,
+            baseUrl = properties.publicBaseUrl,
             userId = user.externalUserId,
             deviceId = device.id.toString(),
             secret = secret,
@@ -319,6 +320,7 @@ class EnrollmentService(
     ): StartEnrollmentResponse {
         val qrPayload = EnrollmentQrPayload(
             serviceId = properties.serviceId,
+            baseUrl = properties.publicBaseUrl,
             userId = externalUserId,
             deviceId = device.id.toString(),
             secret = secret,

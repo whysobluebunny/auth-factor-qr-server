@@ -32,6 +32,7 @@ management:
 app:
   auth-factor:
     service-id: auth-factor-qr-demo
+    public-base-url: ${AUTH_FACTOR_PUBLIC_BASE_URL:http://localhost:8080}
     otp-period: 30s
     otp-digits: 6
     allowed-clock-skew-steps: 1

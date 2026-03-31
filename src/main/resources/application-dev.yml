@@ -8,7 +8,8 @@ spring:
 
 app:
   auth-factor:
-    debug-ui-enabled: true
+    public-base-url: http://192.168.31.198:8080
+    debug-ui-enabled: false
     demo-ui-enabled: true
     enrollment-token-ttl: 10m
     device-response-token-ttl: 2m

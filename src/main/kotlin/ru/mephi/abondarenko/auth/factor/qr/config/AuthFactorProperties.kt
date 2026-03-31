@@ -6,6 +6,7 @@ import java.time.Duration
 @ConfigurationProperties(prefix = "app.auth-factor")
 data class AuthFactorProperties(
     var serviceId: String = "auth-factor-qr",
+    var publicBaseUrl: String = "http://localhost:8080",
     var otpPeriod: Duration = Duration.ofSeconds(30),
     var otpDigits: Int = 6,
     var allowedClockSkewSteps: Long = 1,
