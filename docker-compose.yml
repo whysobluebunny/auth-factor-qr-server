@@ -12,6 +12,29 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_factor_qr -d auth_factor_qr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auth-factor-qr-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_factor_qr
+      SPRING_DATASOURCE_USERNAME: auth_factor_qr
+      SPRING_DATASOURCE_PASSWORD: auth_factor_qr
+      AUTH_FACTOR_MASTER_KEY_BASE64: ${AUTH_FACTOR_MASTER_KEY_BASE64:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+      AUTH_FACTOR_API_KEY: ${AUTH_FACTOR_API_KEY:-prod-local-api-key}
+      AUTH_FACTOR_PUBLIC_BASE_URL: ${AUTH_FACTOR_PUBLIC_BASE_URL:-http://localhost:8080}
+    ports:
+      - "8080:8080"
 
 volumes:
   postgres_data:

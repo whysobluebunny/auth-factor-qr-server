@@ -37,7 +37,7 @@
 ## Запуск PostgreSQL
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
 
 По умолчанию приложение ожидает БД `auth_factor_qr` на `localhost:5432`
@@ -77,7 +77,30 @@ X-Auth-Factor-Api-Key: dev-api-key
 ```
 
 Если нужен именно постоянный локальный PostgreSQL, можно по-прежнему использовать
-`docker compose up -d` и обычный профиль `default`, где используется Flyway.
+`docker compose up -d postgres` и обычный профиль `default`, где используется Flyway.
+
+## Production-like запуск через Docker Compose
+
+Для запуска полного production-like контура можно поднимать и PostgreSQL, и само
+приложение через `docker compose`.
+
+```bash
+export AUTH_FACTOR_MASTER_KEY_BASE64='<your_key>'
+export AUTH_FACTOR_API_KEY='<your_api_key>'
+export AUTH_FACTOR_PUBLIC_BASE_URL='http://localhost:8080'
+
+docker compose up --build
+```
+
+В этом сценарии:
+- PostgreSQL запускается как отдельный контейнер;
+- приложение запускается в `default` профиле;
+- схема БД накатывается через Flyway автоматически;
+- сервис будет доступен на `http://localhost:8080`.
+
+Если нужно оставить доступ для мобильного клиента из локальной сети, вместо
+`localhost` в `AUTH_FACTOR_PUBLIC_BASE_URL` следует передать LAN IP машины, на
+которой запущен compose.
 
 ## Переменная с master key
 
@@ -149,7 +172,6 @@ export AUTH_FACTOR_API_KEY='<your_api_key>'
 ```json
 {
   "externalUserId": "user123",
-  "deviceId": "uuid",
   "firstFactorRef": "login-attempt-001"
 }
 ```
