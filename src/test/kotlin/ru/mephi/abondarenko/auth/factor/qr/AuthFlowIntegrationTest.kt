@@ -11,6 +11,7 @@ import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.CreateChallengeRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceAuthResponseRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceEnrollmentConfirmRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceRevokeRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ResponseQrPayload
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.error.TooManyRequestsException
@@ -286,6 +287,29 @@ class AuthFlowIntegrationTest : AbstractIntegrationTest() {
                 )
             )
         }
+    }
+
+    @Test
+    fun `should allow device to revoke itself with valid totp`() {
+        val enrollment = activeEnrollment("user-revoke-001", "Revoke User", "Phone")
+
+        val revokeCode = totpService.generate(
+            secretBase32 = enrollment.qrPayload.secret,
+            timestamp = Instant.now(clock),
+            digits = enrollment.qrPayload.digits,
+            periodSeconds = enrollment.qrPayload.period,
+            algorithm = TotpAlgorithm.valueOf(enrollment.qrPayload.algorithm)
+        )
+
+        val revokeResult = enrollmentService.revokeDeviceFromDevice(
+            deviceId = enrollment.deviceId,
+            request = DeviceRevokeRequest(
+                totpCode = revokeCode
+            )
+        )
+
+        assertEquals(enrollment.deviceId, revokeResult.deviceId)
+        assertEquals(ru.mephi.abondarenko.auth.factor.qr.domain.DeviceStatus.REVOKED, revokeResult.deviceStatus)
     }
 
     private fun activeEnrollment(externalUserId: String, displayName: String, deviceLabel: String) =

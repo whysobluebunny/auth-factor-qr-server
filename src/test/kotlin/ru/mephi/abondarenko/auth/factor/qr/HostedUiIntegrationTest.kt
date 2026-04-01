@@ -62,6 +62,40 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `should expose hosted enrollment status for polling`() {
+        val enrollment = enrollmentService.startEnrollment(
+            StartEnrollmentRequest(
+                externalUserId = "ui-user-status-001",
+                displayName = "UI Status User",
+                deviceLabel = "Phone"
+            )
+        )
+
+        mockMvc.perform(get("/ui/enrollments/${enrollment.deviceId}/status"))
+            .andExpect(status().isOk)
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("PENDING")))
+
+        val enrollmentCode = totpService.generate(
+            secretBase32 = enrollment.qrPayload.secret,
+            timestamp = Instant.now(clock),
+            digits = enrollment.qrPayload.digits,
+            periodSeconds = enrollment.qrPayload.period,
+            algorithm = TotpAlgorithm.valueOf(enrollment.qrPayload.algorithm)
+        )
+
+        enrollmentService.confirmEnrollment(
+            ConfirmEnrollmentRequest(
+                deviceId = enrollment.deviceId,
+                totpCode = enrollmentCode
+            )
+        )
+
+        mockMvc.perform(get("/ui/enrollments/${enrollment.deviceId}/status"))
+            .andExpect(status().isOk)
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("ACTIVE")))
+    }
+
+    @Test
     fun `should render hosted auth session page and verify response`() {
         val enrollment = enrollmentService.startEnrollment(
             StartEnrollmentRequest(

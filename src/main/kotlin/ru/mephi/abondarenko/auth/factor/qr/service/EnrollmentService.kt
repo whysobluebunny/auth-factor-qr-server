@@ -7,6 +7,7 @@ import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentResponse
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceEnrollmentConfirmRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceInfoResponse
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceRevokeRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.EnrollmentQrPayload
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.RevokeDeviceRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.RevokeDeviceResponse
@@ -100,6 +101,23 @@ class EnrollmentService(
                     lastUsedAt = device.lastUsedAt
                 )
             }
+    }
+
+    @Transactional(readOnly = true)
+    fun getDeviceInfo(deviceId: UUID): DeviceInfoResponse {
+        val device = registeredDeviceRepository.findById(deviceId)
+            .orElseThrow { NotFoundException("Device $deviceId not found") }
+
+        return DeviceInfoResponse(
+            deviceId = device.id,
+            deviceLabel = device.deviceLabel,
+            serviceId = device.serviceId,
+            deviceStatus = device.status,
+            createdAt = device.createdAt,
+            confirmedAt = device.confirmedAt,
+            revokedAt = device.revokedAt,
+            lastUsedAt = device.lastUsedAt
+        )
     }
 
     @Transactional
@@ -344,6 +362,54 @@ class EnrollmentService(
         val device = registeredDeviceRepository.findByIdAndUserExternalUserId(deviceId, request.externalUserId)
             ?: throw NotFoundException("Device $deviceId not found for user ${request.externalUserId}")
 
+        return revokeDeviceInternal(device, request.externalUserId)
+    }
+
+    @Transactional
+    fun revokeDeviceFromDevice(deviceId: UUID, request: DeviceRevokeRequest): RevokeDeviceResponse {
+        val device = registeredDeviceRepository.findById(deviceId)
+            .orElseThrow { NotFoundException("Device $deviceId not found") }
+
+        if (device.status == DeviceStatus.REVOKED) {
+            return RevokeDeviceResponse(
+                deviceId = device.id,
+                deviceStatus = device.status,
+                revokedAt = device.revokedAt ?: Instant.now(clock)
+            )
+        }
+
+        val secret = secretCryptoService.decrypt(device.secretCiphertext, device.secretNonce)
+        val now = Instant.now(clock)
+
+        val valid = totpService.verify(
+            secretBase32 = secret,
+            code = request.totpCode,
+            timestamp = now,
+            digits = device.digits,
+            periodSeconds = device.periodSeconds,
+            algorithm = device.algorithm,
+            allowedClockSkewSteps = properties.allowedClockSkewSteps
+        )
+
+        if (!valid) {
+            auditLogService.logEvent(
+                eventType = AuditEventType.DEVICE_REVOKED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = device.user.externalUserId,
+                deviceId = device.id,
+                details = "Device self-revoke rejected due to invalid TOTP code"
+            )
+            throw BadRequestException("Provided TOTP code is invalid")
+        }
+
+        return revokeDeviceInternal(device, device.user.externalUserId, initiatedByDevice = true)
+    }
+
+    private fun revokeDeviceInternal(
+        device: RegisteredDevice,
+        externalUserId: String,
+        initiatedByDevice: Boolean = false
+    ): RevokeDeviceResponse {
         if (device.status == DeviceStatus.REVOKED) {
             return RevokeDeviceResponse(
                 deviceId = device.id,
@@ -354,13 +420,15 @@ class EnrollmentService(
 
         device.status = DeviceStatus.REVOKED
         device.revokedAt = Instant.now(clock)
+        device.enrollmentTokenHash = null
+        device.enrollmentTokenExpiresAt = null
 
         auditLogService.logEvent(
             eventType = AuditEventType.DEVICE_REVOKED,
             outcome = AuditOutcome.SUCCESS,
-            externalUserId = request.externalUserId,
+            externalUserId = externalUserId,
             deviceId = device.id,
-            details = "Device revoked"
+            details = if (initiatedByDevice) "Device self-revoked" else "Device revoked"
         )
 
         return RevokeDeviceResponse(

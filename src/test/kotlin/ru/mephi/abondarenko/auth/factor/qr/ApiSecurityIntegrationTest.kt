@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import tools.jackson.databind.json.JsonMapper
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceEnrollmentConfirmRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceRevokeRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.service.EnrollmentService
 import ru.mephi.abondarenko.auth.factor.qr.service.totp.TotpService
@@ -110,5 +111,27 @@ class ApiSecurityIntegrationTest : AbstractIntegrationTest() {
         )
             .andExpect(status().isOk)
             .andExpect(content().string(org.hamcrest.Matchers.containsString("ACTIVE")))
+
+        val revokeCode = totpService.generate(
+            secretBase32 = enrollment.qrPayload.secret,
+            timestamp = Instant.now(clock),
+            digits = enrollment.qrPayload.digits,
+            periodSeconds = enrollment.qrPayload.period,
+            algorithm = TotpAlgorithm.valueOf(enrollment.qrPayload.algorithm)
+        )
+
+        mockMvc.perform(
+            post("/api/v1/device/devices/${enrollment.deviceId}/revoke")
+                .contentType("application/json")
+                .content(
+                    objectMapper.writeValueAsString(
+                        DeviceRevokeRequest(
+                            totpCode = revokeCode
+                        )
+                    )
+                )
+        )
+            .andExpect(status().isOk)
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("REVOKED")))
     }
 }

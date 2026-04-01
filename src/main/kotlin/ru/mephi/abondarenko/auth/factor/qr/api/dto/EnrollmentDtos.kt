@@ -65,3 +65,8 @@ data class RevokeDeviceResponse(
     val deviceStatus: DeviceStatus,
     val revokedAt: Instant
 )
+
+data class DeviceRevokeRequest(
+    @field:Pattern(regexp = "^[0-9]{6,8}$")
+    val totpCode: String
+)

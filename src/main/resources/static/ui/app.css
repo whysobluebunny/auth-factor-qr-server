@@ -301,14 +301,15 @@ textarea {
 .qr-card {
     border: 1px solid var(--border);
     border-radius: 24px;
-    padding: 1rem;
+    padding: 0.75rem;
     background: linear-gradient(180deg, #fff 0%, #f7f4ed 100%);
 }
 
 .qr-card img {
     display: block;
     width: 100%;
-    height: auto;
+    height: 100%;
+    object-fit: contain;
 }
 
 .scanner-panel {
@@ -388,35 +389,30 @@ textarea {
     display: flex;
     align-items: center;
     justify-content: center;
+    aspect-ratio: 1 / 1;
 }
 
 .auth-session-page .auth-challenge-card {
     margin-top: 0.5rem;
-    padding: 0.75rem;
+    padding: 0.5rem;
 }
 
 .enrollment-page .auth-challenge-card {
     margin-top: 0.5rem;
-    padding: 0.75rem;
+    padding: 0.5rem;
 }
 
 .auth-session-page .qr-card img {
-    max-height: clamp(11rem, 22dvh, 14rem);
-    width: auto;
-    max-width: 100%;
-    object-fit: contain;
+    max-height: none;
     transition: max-height 160ms ease;
 }
 
 .enrollment-page .qr-card img {
-    max-height: clamp(14rem, 32dvh, 20rem);
-    width: auto;
-    max-width: 100%;
-    object-fit: contain;
+    max-height: none;
 }
 
 .auth-session-page.scanner-active .qr-card img {
-    max-height: clamp(13rem, 26dvh, 17rem);
+    max-height: none;
 }
 
 .enrollment-side {

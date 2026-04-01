@@ -5,6 +5,7 @@ import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.validation.BindingResult
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.ResponseBody
 import org.springframework.web.servlet.mvc.support.RedirectAttributes
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.error.ApiException
@@ -139,5 +140,17 @@ class HostedEnrollmentController(
             )
         )
         return "ui/hosted/devices"
+    }
+
+    @GetMapping("/enrollments/{deviceId}/status")
+    @ResponseBody
+    fun enrollmentStatus(
+        @PathVariable deviceId: java.util.UUID
+    ): HostedEnrollmentStatusViewModel {
+        val device = enrollmentService.getDeviceInfo(deviceId)
+        return HostedEnrollmentStatusViewModel(
+            deviceId = device.deviceId,
+            deviceStatus = device.deviceStatus.name
+        )
     }
 }

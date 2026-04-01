@@ -56,6 +56,11 @@ data class HostedEnrollmentViewModel(
     val returnUrl: String?
 )
 
+data class HostedEnrollmentStatusViewModel(
+    val deviceId: UUID,
+    val deviceStatus: String
+)
+
 data class HostedEnrollmentConfirmForm(
     @field:NotNull
     val deviceId: UUID? = null,

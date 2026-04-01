@@ -14,15 +14,16 @@
         })();
     </script>
 </head>
-<body class="enrollment-page">
+<body class="enrollment-page"
+      th:attr="data-device-id=${enrollment != null ? enrollment.deviceId : null},
+               data-device-status=${enrollment != null ? enrollment.deviceStatus : null},
+               data-return-url=${enrollment != null ? enrollment.returnUrl : null}">
 <main class="page">
     <section class="panel">
         <div class="section-head">
             <div>
                 <div class="eyebrow">Hosted 2FA UI</div>
                 <h1>Device Enrollment</h1>
-                <p class="lead">This hosted page belongs to the second-factor service and presents the enrollment QR created by
-                    the relying application for the current user.</p>
             </div>
             <button class="button ghost debug-toggle" th:if="${uiDebugEnabled}" type="button" id="debug-toggle-button">
                 Hide Debug UI
@@ -49,15 +50,6 @@
             <input type="hidden" th:field="*{returnUrl}">
             <button class="button primary full-width" type="submit">Start Enrollment</button>
         </form>
-
-        <div class="message info prod-only" th:if="${uiDebugEnabled}">
-            The enrollment context is created by the relying application. This page only displays the QR and guides the
-            user through device setup.
-        </div>
-        <div class="message info" th:unless="${uiDebugEnabled}">
-            The enrollment context is created by the relying application. This page only displays the QR and guides the
-            user through device setup.
-        </div>
     </section>
 
     <section class="panel" th:if="${enrollment != null}">
@@ -176,6 +168,52 @@
                 }
             }, { once: true });
         });
+    })();
+</script>
+<script>
+    (() => {
+        const body = document.body;
+        const deviceId = body.dataset.deviceId;
+        const deviceStatus = body.dataset.deviceStatus;
+        const returnUrl = body.dataset.returnUrl;
+
+        if (!deviceId || !returnUrl || deviceStatus !== 'PENDING') {
+            return;
+        }
+
+        let polling = true;
+
+        const pollStatus = async () => {
+            if (!polling) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/ui/enrollments/${deviceId}/status`, {
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+                if (payload.deviceStatus && payload.deviceStatus !== 'PENDING') {
+                    polling = false;
+                    window.location.assign(returnUrl);
+                    return;
+                }
+            } catch (_) {
+                return;
+            }
+
+            window.setTimeout(pollStatus, 1500);
+        };
+
+        window.setTimeout(pollStatus, 1500);
     })();
 </script>
 </body>
