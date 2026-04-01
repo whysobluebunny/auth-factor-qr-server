@@ -1,19 +1,15 @@
 package ru.mephi.abondarenko.auth.factor.qr.api.dto
 
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import ru.mephi.abondarenko.auth.factor.qr.domain.SessionStatus
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 data class CreateChallengeRequest(
     @field:NotBlank
     @field:Size(max = 128)
     val externalUserId: String,
-
-    @field:NotNull
-    val deviceId: UUID,
 
     @field:Size(max = 255)
     val firstFactorRef: String? = null
@@ -39,7 +35,7 @@ data class VerifyQrResponseResult(
 data class SessionInfoResponse(
     val sessionId: UUID,
     val userId: UUID,
-    val deviceId: UUID,
+    val deviceId: UUID?,
     val status: SessionStatus,
     val createdAt: Instant,
     val expiresAt: Instant,

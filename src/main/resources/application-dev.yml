@@ -1,0 +1,17 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+  flyway:
+    enabled: false
+
+app:
+  auth-factor:
+    public-base-url: http://192.168.31.198:8080
+    debug-ui-enabled: false
+    demo-ui-enabled: true
+    enrollment-token-ttl: 10m
+    device-response-token-ttl: 2m
+    master-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    api-key: dev-api-key

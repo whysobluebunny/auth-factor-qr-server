@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Device Simulator | Auth Factor QR</title>
+    <link rel="stylesheet" th:href="@{/ui/app.css}">
+</head>
+<body>
+<main class="page">
+    <section class="panel">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Hosted 2FA UI</div>
+                <h1>Device Simulator</h1>
+                <p class="lead">Temporary browser helper for enrollment confirmation and challenge response generation
+                    until the mobile client is implemented.</p>
+            </div>
+            <a class="button ghost" th:href="@{/demo}">Demo App</a>
+        </div>
+
+        <form class="form-grid" method="post" th:action="@{/ui/tools/device-simulator}" th:object="${form}">
+            <label class="full-width">
+                <span>Secret</span>
+                <input type="text" th:field="*{secret}" placeholder="Base32 secret from enrollment payload">
+            </label>
+            <label>
+                <span>Device ID</span>
+                <input type="text" th:field="*{deviceId}" placeholder="device UUID">
+            </label>
+            <label>
+                <span>Session ID</span>
+                <input type="text" th:field="*{sessionId}" placeholder="optional auth session UUID">
+            </label>
+            <label class="full-width">
+                <span>Enrollment Token</span>
+                <input type="text" th:field="*{enrollmentToken}" placeholder="optional device enrollment token">
+            </label>
+            <label class="full-width">
+                <span>Device Label</span>
+                <input type="text" th:field="*{deviceLabel}" placeholder="Pixel 8">
+            </label>
+            <label>
+                <span>Digits</span>
+                <input type="number" th:field="*{digits}" placeholder="6">
+            </label>
+            <label>
+                <span>Period (sec)</span>
+                <input type="number" th:field="*{period}" placeholder="30">
+            </label>
+            <label>
+                <span>Algorithm</span>
+                <select th:field="*{algorithm}">
+                    <option th:value="SHA1">SHA1</option>
+                    <option th:value="SHA256">SHA256</option>
+                    <option th:value="SHA512">SHA512</option>
+                </select>
+            </label>
+            <label class="full-width">
+                <span>Challenge Payload JSON</span>
+                <textarea class="payload input-payload" th:field="*{challengePayloadRaw}"
+                          placeholder='Optional if Session ID is provided. {"type":"challenge","session_id":"...","challenge":"...","service_id":"...","timestamp":1774356605}'></textarea>
+            </label>
+            <input type="hidden" th:field="*{returnUrl}">
+            <button class="button primary full-width" type="submit">Generate TOTP / Response</button>
+        </form>
+    </section>
+
+    <section class="panel" th:if="${simulatorResult != null}">
+        <div class="eyebrow">Generated Values</div>
+        <h2>Browser Device Output</h2>
+
+        <div class="meta-grid">
+            <div>
+                <span class="meta-label">Generated At</span>
+                <strong th:text="${simulatorResult.generatedAt}">time</strong>
+            </div>
+            <div>
+                <span class="meta-label">Current TOTP</span>
+                <strong th:text="${simulatorResult.currentTotpCode}">123456</strong>
+            </div>
+        </div>
+
+        <div th:if="${simulatorResult.enrollmentConfirmPayloadRaw != null}">
+            <span class="meta-label">Enrollment Confirm Payload</span>
+            <textarea class="payload" readonly th:text="${simulatorResult.enrollmentConfirmPayloadRaw}"></textarea>
+            <button
+                    class="button primary full-width js-api-submit"
+                    type="button"
+                    th:attr="data-endpoint=${simulatorResult.enrollmentSubmitUrl},data-payload=${simulatorResult.enrollmentConfirmPayloadRaw}">
+                Submit Enrollment Confirm To Device API
+            </button>
+        </div>
+
+        <div th:if="${simulatorResult.responsePayloadRaw != null}">
+            <span class="meta-label">Device Auth Response Payload</span>
+            <textarea class="payload" readonly th:text="${simulatorResult.responsePayloadRaw}"></textarea>
+
+            <div class="qr-layout" th:if="${simulatorResult.responseQrCodeDataUrl != null}">
+                <div class="qr-card">
+                    <img alt="Response QR" th:src="${simulatorResult.responseQrCodeDataUrl}">
+                </div>
+                <div class="message info">
+                    Show this QR code to the camera on the hosted authentication page to complete the second-factor
+                    flow through the target browser experience.
+                </div>
+            </div>
+
+            <form
+                    class="form-grid"
+                    method="post"
+                    th:if="${form.sessionId != null}"
+                    th:action="@{|/ui/auth/sessions/${form.sessionId}/verify|}">
+                <input type="hidden" name="responsePayloadRaw" th:value="${simulatorResult.responsePayloadRaw}">
+                <input type="hidden" name="returnUrl" th:value="${form.returnUrl}">
+                <button class="button primary full-width" type="submit">Submit Response To Hosted Session</button>
+            </form>
+        </div>
+
+        <div class="message info" id="api-submit-status" hidden></div>
+        <textarea class="payload" id="api-submit-response" hidden readonly></textarea>
+    </section>
+</main>
+<script>
+    (() => {
+        const status = document.getElementById('api-submit-status');
+        const response = document.getElementById('api-submit-response');
+
+        document.querySelectorAll('.js-api-submit').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const endpoint = button.dataset.endpoint;
+                const payload = button.dataset.payload;
+                if (!endpoint || !payload) {
+                    return;
+                }
+
+                button.disabled = true;
+                status.hidden = false;
+                response.hidden = false;
+                status.className = 'message info';
+                status.textContent = 'Submitting request...';
+                response.value = '';
+
+                try {
+                    const result = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: payload
+                    });
+
+                    const body = await result.text();
+                    status.className = result.ok ? 'message success' : 'message error';
+                    status.textContent = result.ok
+                        ? `Request completed with ${result.status}`
+                        : `Request failed with ${result.status}`;
+                    response.value = body;
+                } catch (error) {
+                    status.className = 'message error';
+                    status.textContent = 'Request failed before reaching the device API';
+                    response.value = String(error);
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+    })();
+</script>
+</body>
+</html>

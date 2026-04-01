@@ -1,0 +1,573 @@
+:root {
+    --bg: #f4efe6;
+    --panel: #fffdf8;
+    --text: #1f2430;
+    --muted: #6c7482;
+    --border: #d8cfbe;
+    --accent: #0f766e;
+    --accent-strong: #115e59;
+    --danger: #b42318;
+    --success: #0f766e;
+    --shadow: 0 20px 50px rgba(46, 52, 64, 0.12);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+    color: var(--text);
+    background: radial-gradient(circle at top right, rgba(15, 118, 110, 0.12), transparent 24rem),
+    linear-gradient(180deg, #f8f4eb 0%, #efe7db 100%);
+}
+
+body.auth-session-page {
+    min-height: 100dvh;
+}
+
+body.enrollment-page {
+    min-height: 100dvh;
+}
+
+.page {
+    width: min(1120px, calc(100% - 2rem));
+    margin: 2rem auto 4rem;
+    display: grid;
+    gap: 1.5rem;
+}
+
+.auth-session-page .page {
+    min-height: calc(100dvh - 2rem);
+    width: min(1280px, calc(100% - 1.5rem));
+    margin: 0.75rem auto;
+}
+
+.enrollment-page .page {
+    width: min(1280px, calc(100% - 1.5rem));
+    margin: 0.75rem auto 2rem;
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+}
+
+.auth-session-page .panel {
+    padding: 1rem 1.1rem;
+}
+
+.enrollment-page .panel {
+    padding: 1rem 1.1rem;
+}
+
+.eyebrow {
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+h1, h2 {
+    margin: 0.25rem 0 0.5rem;
+    font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+}
+
+.lead {
+    margin: 0 0 1.25rem;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.hero-grid {
+    display: grid;
+    grid-template-columns: 1.3fr 0.9fr;
+    gap: 1rem;
+    align-items: start;
+}
+
+.stack {
+    display: grid;
+    gap: 1rem;
+}
+
+.callout {
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(15, 118, 110, 0.08), rgba(15, 118, 110, 0.03));
+    padding: 1rem 1.1rem;
+}
+
+.callout h2,
+.callout h3 {
+    margin: 0 0 0.35rem;
+}
+
+.callout p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.checklist {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.checklist li + li {
+    margin-top: 0.35rem;
+}
+
+.section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.auth-session-page .section-head {
+    margin-bottom: 0.5rem;
+}
+
+.enrollment-page .section-head {
+    margin-bottom: 0.5rem;
+}
+
+.auth-session-page h1 {
+    font-size: clamp(2.4rem, 3vw, 3.2rem);
+    line-height: 1.05;
+}
+
+.enrollment-page h1 {
+    font-size: clamp(2.4rem, 3vw, 3.2rem);
+    line-height: 1.05;
+}
+
+.auth-session-page .section-head .lead {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.enrollment-page .section-head .lead {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.form-grid label {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.95rem;
+}
+
+.form-grid span {
+    color: var(--muted);
+}
+
+input,
+textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #fff;
+    padding: 0.9rem 1rem;
+    font: inherit;
+    color: inherit;
+}
+
+textarea {
+    min-height: 11rem;
+    resize: vertical;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.85rem 1.25rem;
+    border: 1px solid transparent;
+    text-decoration: none;
+    font-weight: 600;
+    transition: transform 120ms ease, background 120ms ease;
+}
+
+.button:hover {
+    transform: translateY(-1px);
+}
+
+.button.primary {
+    background: var(--accent);
+    color: #fff;
+}
+
+.button.primary:hover {
+    background: var(--accent-strong);
+}
+
+.button.ghost {
+    background: transparent;
+    color: var(--text);
+    border-color: var(--border);
+}
+
+.debug-toggle-supported .prod-only {
+    display: none;
+}
+
+.debug-toggle-supported.debug-hidden .debug-only {
+    display: none !important;
+}
+
+.debug-toggle-supported.debug-hidden .prod-only {
+    display: revert;
+}
+
+.debug-toggle-supported.debug-hidden .auth-flow-grid.prod-only {
+    display: grid;
+}
+
+.debug-toggle {
+    margin-left: auto;
+}
+
+.full-width {
+    grid-column: 1 / -1;
+}
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.auth-session-page .meta-grid {
+    margin-bottom: 0.5rem;
+}
+
+.enrollment-page .meta-grid {
+    margin-bottom: 0.75rem;
+}
+
+.meta-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.qr-layout {
+    display: grid;
+    grid-template-columns: minmax(220px, 320px) 1fr;
+    gap: 1rem;
+    align-items: start;
+}
+
+.qr-card {
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 0.75rem;
+    background: linear-gradient(180deg, #fff 0%, #f7f4ed 100%);
+}
+
+.qr-card img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.scanner-panel {
+    margin-top: 1rem;
+}
+
+.auth-flow-grid .scanner-panel {
+    margin-top: 0;
+}
+
+.auth-flow-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 360px) minmax(320px, 1fr);
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.auth-session-page .auth-flow-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.875rem;
+}
+
+.enrollment-page .enrollment-flow {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.95fr);
+    gap: 0.875rem;
+}
+
+.auth-flow-grid > section {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.auth-flow-grid h2 {
+    min-height: 5.5rem;
+}
+
+.auth-flow-grid .lead {
+    min-height: 7rem;
+}
+
+.auth-session-page .auth-flow-grid h2 {
+    min-height: 0;
+    font-size: clamp(1.7rem, 1.9vw, 2.2rem);
+    line-height: 1.08;
+}
+
+.enrollment-page .enrollment-flow h2 {
+    min-height: 0;
+    font-size: clamp(1.7rem, 1.9vw, 2.2rem);
+    line-height: 1.08;
+}
+
+.auth-session-page .auth-flow-grid .lead {
+    min-height: 0;
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+}
+
+.enrollment-page .enrollment-flow .lead {
+    min-height: 0;
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+}
+
+.auth-session-page .callout {
+    padding: 0.9rem 1rem;
+}
+
+.enrollment-page .callout {
+    padding: 0.9rem 1rem;
+}
+
+.auth-challenge-card {
+    margin-top: 1rem;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1 / 1;
+}
+
+.auth-session-page .auth-challenge-card {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+}
+
+.enrollment-page .auth-challenge-card {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+}
+
+.auth-session-page .qr-card img {
+    max-height: none;
+    transition: max-height 160ms ease;
+}
+
+.enrollment-page .qr-card img {
+    max-height: none;
+}
+
+.auth-session-page.scanner-active .qr-card img {
+    max-height: none;
+}
+
+.enrollment-side {
+    align-self: start;
+}
+
+.debug-payload {
+    margin-top: 1rem;
+}
+
+.scanner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.auth-session-page .scanner-actions {
+    margin-bottom: 0.75rem;
+}
+
+.scanner-frame {
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    overflow: hidden;
+    background: #141922;
+    min-height: 28rem;
+}
+
+.auth-session-page .scanner-frame {
+    margin-bottom: 0.75rem;
+    min-height: clamp(13rem, 26dvh, 17rem);
+}
+
+.scanner-frame video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 28rem;
+    object-fit: cover;
+}
+
+.auth-session-page .scanner-frame video {
+    min-height: clamp(13rem, 26dvh, 17rem);
+}
+
+.payload {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.9rem;
+}
+
+.input-payload {
+    min-height: 13rem;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th,
+.table td {
+    padding: 0.85rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+}
+
+.status-banner,
+.message {
+    border-radius: 18px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.auth-session-page .status-banner,
+.auth-session-page .message {
+    margin-bottom: 0.5rem;
+}
+
+.status-banner.pending,
+.message.info {
+    background: rgba(15, 118, 110, 0.08);
+}
+
+.status-banner.approved,
+.message.success {
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.status-banner.blocked,
+.message.error {
+    background: rgba(180, 35, 24, 0.12);
+}
+
+code {
+    font-family: "IBM Plex Mono", monospace;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+    .page {
+        width: min(100% - 1rem, 100%);
+        margin-top: 1rem;
+    }
+
+    .panel {
+        padding: 1rem;
+        border-radius: 20px;
+    }
+
+    .section-head,
+    .hero-grid,
+    .auth-flow-grid,
+    .qr-layout,
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-flow-grid h2,
+    .auth-flow-grid .lead {
+        min-height: 0;
+    }
+
+    .auth-session-page .page {
+        min-height: 0;
+    }
+
+    .enrollment-page .page {
+        width: min(100% - 1rem, 100%);
+        margin-top: 1rem;
+    }
+
+    .auth-session-page .auth-flow-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .enrollment-page .enrollment-flow {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-session-page .scanner-frame,
+    .auth-session-page .scanner-frame video,
+    .auth-session-page .qr-card img {
+        min-height: 0;
+        max-height: none;
+        height: auto;
+    }
+
+    .action-row {
+        flex-direction: column;
+    }
+
+    .scanner-actions {
+        flex-direction: column;
+    }
+}

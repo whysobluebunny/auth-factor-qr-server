@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Challenge Start | Auth Factor QR</title>
+    <link rel="stylesheet" th:href="@{/ui/app.css}">
+</head>
+<body>
+<main class="page">
+    <section class="panel">
+        <div class="eyebrow">Hosted 2FA UI</div>
+        <h1>Create Authentication Challenge</h1>
+        <p class="lead">This page simulates how an upstream system can hand off the user into a hosted second-factor
+            flow.</p>
+
+        <form class="form-grid" method="post" th:action="@{/ui/auth/challenges}" th:object="${form}">
+            <label>
+                <span>External User ID</span>
+                <input type="text" th:field="*{externalUserId}" placeholder="user123">
+            </label>
+            <label>
+                <span>First Factor Ref</span>
+                <input type="text" th:field="*{firstFactorRef}" placeholder="login-attempt-001">
+            </label>
+            <label>
+                <span>Return URL</span>
+                <input type="text" th:field="*{returnUrl}" placeholder="https://demo-app/callback">
+            </label>
+            <button class="button primary full-width" type="submit">Create Challenge</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

@@ -57,6 +57,12 @@ class RegisteredDevice(
     @Column(name = "confirmed_at")
     var confirmedAt: Instant? = null,
 
+    @Column(name = "enrollment_token_hash", length = 64)
+    var enrollmentTokenHash: String? = null,
+
+    @Column(name = "enrollment_token_expires_at")
+    var enrollmentTokenExpiresAt: Instant? = null,
+
     @Column(name = "revoked_at")
     var revokedAt: Instant? = null,
 

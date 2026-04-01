@@ -1,0 +1,39 @@
+spring:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: false
+
+app:
+  auth-factor:
+    service-id: auth-factor-qr-test
+    public-base-url: http://localhost:8080
+    otp-period: 30s
+    otp-digits: 6
+    allowed-clock-skew-steps: 1
+    challenge-ttl: 2m
+    challenge-rate-limit-window: 1m
+    challenge-rate-limit-requests: 5
+    response-max-age: 2m
+    verify-rate-limit-window: 1m
+    verify-rate-limit-requests: 3
+    max-verify-attempts: 3
+    max-active-devices-per-user: 2
+    max-pending-devices-per-user: 2
+    allow-duplicate-device-labels: false
+    auth-session-retention: 10m
+    auth-session-cleanup-interval: 1h
+    enrollment-token-ttl: 10m
+    device-response-token-ttl: 2m
+    debug-ui-enabled: true
+    demo-ui-enabled: true
+    master-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    api-key-header-name: X-Auth-Factor-Api-Key
+    api-key: test-api-key

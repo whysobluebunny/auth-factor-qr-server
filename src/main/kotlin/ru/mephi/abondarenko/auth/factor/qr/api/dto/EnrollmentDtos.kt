@@ -42,3 +42,31 @@ data class ConfirmEnrollmentResponse(
     val deviceStatus: DeviceStatus,
     val confirmedAt: Instant
 )
+
+data class DeviceInfoResponse(
+    val deviceId: UUID,
+    val deviceLabel: String,
+    val serviceId: String,
+    val deviceStatus: DeviceStatus,
+    val createdAt: Instant,
+    val confirmedAt: Instant?,
+    val revokedAt: Instant?,
+    val lastUsedAt: Instant?
+)
+
+data class RevokeDeviceRequest(
+    @field:NotBlank
+    @field:Size(max = 128)
+    val externalUserId: String
+)
+
+data class RevokeDeviceResponse(
+    val deviceId: UUID,
+    val deviceStatus: DeviceStatus,
+    val revokedAt: Instant
+)
+
+data class DeviceRevokeRequest(
+    @field:Pattern(regexp = "^[0-9]{6,8}$")
+    val totpCode: String
+)

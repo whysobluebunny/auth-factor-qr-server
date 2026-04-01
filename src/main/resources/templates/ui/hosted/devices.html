@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Devices | Auth Factor QR</title>
+    <link rel="stylesheet" th:href="@{/ui/app.css}">
+</head>
+<body>
+<main class="page">
+    <section class="panel">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Hosted 2FA UI</div>
+                <h1>Registered Devices</h1>
+                <p class="lead" th:text="'User: ' + ${deviceList.externalUserId}">User: user123</p>
+            </div>
+            <a class="button ghost" th:href="@{/ui/enrollments}">New Enrollment</a>
+        </div>
+
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Label</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Confirmed</th>
+                <th>Revoked</th>
+                <th>Last Used</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="device : ${deviceList.devices}">
+                <td th:text="${device.deviceLabel}">Phone</td>
+                <td th:text="${device.deviceStatus}">ACTIVE</td>
+                <td th:text="${device.createdAt}">time</td>
+                <td th:text="${device.confirmedAt} ?: '-'">time</td>
+                <td th:text="${device.revokedAt} ?: '-'">time</td>
+                <td th:text="${device.lastUsedAt} ?: '-'">time</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

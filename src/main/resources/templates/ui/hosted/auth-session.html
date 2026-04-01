@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Auth Session | Auth Factor QR</title>
+    <link rel="stylesheet" th:href="@{/ui/app.css}">
+    <script th:if="${uiDebugEnabled}">
+        (() => {
+            document.documentElement.classList.add('debug-toggle-supported');
+            if (window.localStorage.getItem('auth-factor-debug-hidden') === 'true') {
+                document.documentElement.classList.add('debug-hidden');
+            }
+        })();
+    </script>
+</head>
+<body class="auth-session-page">
+<main class="page">
+    <section class="panel">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Hosted 2FA UI</div>
+                <h1>Authentication Session</h1>
+                <p class="lead debug-only" th:if="${uiDebugEnabled}" th:text="${authSessionView.sessionId}">session-id</p>
+                <p class="lead prod-only" th:if="${uiDebugEnabled}">Scan the challenge QR with your registered device, then
+                    present the generated response QR to this page to finish sign-in.</p>
+                <p class="lead" th:unless="${uiDebugEnabled}">Scan the challenge QR with your registered device, then
+                    present the generated response QR to this page to finish sign-in.</p>
+            </div>
+            <div class="action-row">
+                <a class="button ghost debug-only" th:if="${uiDebugEnabled}" th:href="@{/ui/auth/challenges}">New Challenge</a>
+                <button class="button ghost debug-toggle" th:if="${uiDebugEnabled}" type="button" id="debug-toggle-button">
+                    Hide Debug UI
+                </button>
+            </div>
+        </div>
+
+        <div class="status-banner"
+             th:classappend="${authSessionView.status.name() == 'APPROVED'} ? ' approved' : (${authSessionView.status.name() == 'PENDING'} ? ' pending' : ' blocked')"
+             th:text="'Status: ' + ${authSessionView.status}">
+            Status: PENDING
+        </div>
+
+        <div class="message success" th:if="${message != null and !#strings.isEmpty(message)}" th:text="${message}">Second factor approved.</div>
+        <div class="message error" th:if="${errorMessage != null and !#strings.isEmpty(errorMessage)}" th:text="${errorMessage}">Invalid payload.</div>
+
+        <div class="meta-grid debug-only" th:if="${uiDebugEnabled}">
+            <div>
+                <span class="meta-label">Created At</span>
+                <strong th:text="${authSessionView.createdAt}">time</strong>
+            </div>
+            <div>
+                <span class="meta-label">Expires At</span>
+                <strong th:text="${authSessionView.expiresAt}">time</strong>
+            </div>
+            <div>
+                <span class="meta-label">Verified At</span>
+                <strong th:text="${authSessionView.verifiedAt} ?: '-'">time</strong>
+            </div>
+            <div>
+                <span class="meta-label">Attempts</span>
+                <strong th:text="${authSessionView.attemptCount + ' / ' + authSessionView.maxAttempts}">0 / 3</strong>
+            </div>
+        </div>
+
+        <form class="form-grid" method="post"
+              th:action="@{|/ui/auth/sessions/${authSessionView.sessionId}/verify|}" th:object="${verifyForm}">
+            <input type="hidden" th:field="*{returnUrl}">
+            <label class="full-width debug-only" th:if="${uiDebugEnabled}">
+                <span>Response Payload JSON</span>
+                <textarea class="payload input-payload" th:field="*{responsePayloadRaw}"
+                          placeholder='{"type":"response","session_id":"...","challenge":"...","totp":"123456","timestamp":1774356605,"device_id":"..."}'></textarea>
+            </label>
+            <textarea th:unless="${uiDebugEnabled}" class="visually-hidden" th:field="*{responsePayloadRaw}" aria-hidden="true"></textarea>
+            <button class="button primary full-width debug-only" type="submit" id="scanner-submit" th:attr="data-debug=${uiDebugEnabled}">
+                <span>Verify Response</span>
+            </button>
+        </form>
+
+        <div class="auth-flow-grid">
+            <section class="callout">
+                <div class="eyebrow">Challenge QR</div>
+                <h2>Scan This Code On Your Device</h2>
+                <p class="lead">Open the registered second-factor app and scan this challenge QR to generate the
+                    response code for the current sign-in.</p>
+                <div class="qr-card auth-challenge-card">
+                    <img alt="Challenge QR" th:src="${authSessionView.qrCodeDataUrl}">
+                </div>
+                <div class="debug-payload debug-only" th:if="${uiDebugEnabled}">
+                    <span class="meta-label">Challenge Payload</span>
+                    <textarea class="payload" readonly th:text="${authSessionView.qrPayloadRaw}"></textarea>
+                </div>
+            </section>
+
+            <section class="callout">
+                <div class="eyebrow">QR Scanner</div>
+                <h2 th:if="${uiDebugEnabled}">Scan Response QR With Camera</h2>
+                <h2 th:unless="${uiDebugEnabled}">Show Response QR To Camera</h2>
+                <p class="lead debug-only" th:if="${uiDebugEnabled}">Use a webcam to scan the response QR from the simulated or mobile
+                    device. The decoded payload will be inserted into the verify form automatically.</p>
+                <p class="lead prod-only" th:if="${uiDebugEnabled}">After your device scans the challenge and generates a response QR, allow camera access
+                    and show that QR to the webcam. The hosted page will decode it and submit the confirmation.</p>
+                <p class="lead" th:unless="${uiDebugEnabled}">After your device scans the challenge and generates a response QR, allow camera access
+                    and show that QR to the webcam. The hosted page will decode it and submit the confirmation.</p>
+
+                <div class="scanner-actions">
+                    <button class="button primary" type="button" id="scanner-start">Start Camera Scan</button>
+                    <button class="button ghost" type="button" id="scanner-stop" disabled>Stop Scan</button>
+                </div>
+
+                <div class="scanner-frame" id="scanner-frame" hidden>
+                    <video id="scanner-video" playsinline muted></video>
+                </div>
+
+                <div class="message info" id="scanner-status">
+                    Camera scanning is idle.
+                </div>
+            </section>
+        </div>
+
+        <div class="message info debug-only" th:if="${uiDebugEnabled}">
+            No mobile client yet:
+            <a th:href="@{/ui/tools/device-simulator(sessionId=${authSessionView.sessionId},returnUrl=${authSessionView.returnUrl})}">
+                open device simulator
+            </a>
+            and generate a response payload in the browser.
+        </div>
+
+        <div class="message info prod-only" th:if="${uiDebugEnabled}">
+            Technical payload details are hidden outside debug mode. The normal confirmation flow is challenge QR on
+            the device followed by response QR scanning in the browser.
+        </div>
+        <div class="message info" th:unless="${uiDebugEnabled}">
+            Technical payload details are hidden outside debug mode. The normal confirmation flow is challenge QR on
+            the device followed by response QR scanning in the browser.
+        </div>
+
+        <div class="message info debug-only"
+             th:if="${uiDebugEnabled and authSessionView.returnUrl != null and authSessionView.status.name() == 'APPROVED'}">
+            Return URL captured for future hosted redirect flow:
+            <code th:text="${authSessionView.returnUrl}">https://demo-app/callback</code>
+        </div>
+    </section>
+</main>
+<script>
+    (() => {
+        const debugToggleButton = document.getElementById('debug-toggle-button');
+        if (debugToggleButton) {
+            const hidden = document.documentElement.classList.contains('debug-hidden');
+            debugToggleButton.textContent = hidden ? 'Enable Debug UI' : 'Hide Debug UI';
+            debugToggleButton.addEventListener('click', () => {
+                const nextHidden = !document.documentElement.classList.contains('debug-hidden');
+                window.localStorage.setItem('auth-factor-debug-hidden', String(nextHidden));
+                window.location.reload();
+            });
+        }
+
+        const startButton = document.getElementById('scanner-start');
+        const stopButton = document.getElementById('scanner-stop');
+        const status = document.getElementById('scanner-status');
+        const frame = document.getElementById('scanner-frame');
+        const video = document.getElementById('scanner-video');
+        const payloadField = document.getElementById('responsePayloadRaw');
+        const submitButton = document.getElementById('scanner-submit');
+        const verifyForm = document.querySelector('form[action*="/verify"]');
+
+        if (!startButton || !stopButton || !status || !frame || !video || !payloadField || !verifyForm) {
+            return;
+        }
+
+        let mediaStream = null;
+        let animationFrameId = null;
+        let detector = null;
+        let canvas = null;
+        let context = null;
+        let scanning = false;
+        const debugAvailable = submitButton?.dataset.debug === 'true';
+        const debugMode = debugAvailable && !document.documentElement.classList.contains('debug-hidden');
+
+        if (submitButton && !debugMode && !payloadField.value) {
+            submitButton.disabled = true;
+        }
+
+        const setStatus = (message, kind) => {
+            status.textContent = message;
+            status.className = `message ${kind}`;
+        };
+
+        const stopScanner = async () => {
+            scanning = false;
+            document.body.classList.remove('scanner-active');
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (mediaStream) {
+                mediaStream.getTracks().forEach((track) => track.stop());
+                mediaStream = null;
+            }
+            video.srcObject = null;
+            frame.hidden = true;
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            if (submitButton && !payloadField.value) {
+                submitButton.disabled = true;
+            }
+            setStatus('Camera scanning is idle.', 'info');
+        };
+
+        const scanFrame = async () => {
+            if (!scanning || !detector || video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
+                animationFrameId = requestAnimationFrame(scanFrame);
+                return;
+            }
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            try {
+                const barcodes = await detector.detect(canvas);
+                const qrCode = barcodes.find((item) => item.rawValue);
+                if (qrCode) {
+                    payloadField.value = qrCode.rawValue;
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                    }
+                    setStatus('QR response decoded. Submitting confirmation...', 'success');
+                    await stopScanner();
+                    if (debugMode && submitButton) {
+                        verifyForm.requestSubmit(submitButton);
+                    } else {
+                        verifyForm.submit();
+                    }
+                    return;
+                }
+            } catch (error) {
+                setStatus(`QR scan failed: ${String(error)}`, 'error');
+                await stopScanner();
+                return;
+            }
+
+            animationFrameId = requestAnimationFrame(scanFrame);
+        };
+
+        startButton.addEventListener('click', async () => {
+            if (!('BarcodeDetector' in window)) {
+                setStatus('BarcodeDetector API is not available in this browser. Use a Chromium-based browser for camera scanning.', 'error');
+                return;
+            }
+
+            try {
+                detector = new BarcodeDetector({ formats: ['qr_code'] });
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' },
+                    audio: false
+                });
+
+                canvas = document.createElement('canvas');
+                context = canvas.getContext('2d');
+                video.srcObject = mediaStream;
+                await video.play();
+
+                scanning = true;
+                document.body.classList.add('scanner-active');
+                frame.hidden = false;
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                setStatus('Scanning for a response QR...', 'info');
+                animationFrameId = requestAnimationFrame(scanFrame);
+            } catch (error) {
+                setStatus(`Unable to start camera scanning: ${String(error)}`, 'error');
+                await stopScanner();
+            }
+        });
+
+        stopButton.addEventListener('click', async () => {
+            await stopScanner();
+        });
+
+        setTimeout(() => {
+            startButton.click();
+        }, 300);
+    })();
+</script>
+</body>
+</html>

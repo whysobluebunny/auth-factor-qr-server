@@ -6,9 +6,9 @@ spring:
     name: auth-factor-qr-server
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/auth_factor_qr
-    username: auth_factor_qr
-    password: auth_factor_qr
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/auth_factor_qr}
+    username: ${SPRING_DATASOURCE_USERNAME:auth_factor_qr}
+    password: ${SPRING_DATASOURCE_PASSWORD:auth_factor_qr}
 
   jpa:
     open-in-view: false
@@ -32,10 +32,26 @@ management:
 app:
   auth-factor:
     service-id: auth-factor-qr-demo
+    public-base-url: ${AUTH_FACTOR_PUBLIC_BASE_URL:http://localhost:8080}
     otp-period: 30s
     otp-digits: 6
     allowed-clock-skew-steps: 1
     challenge-ttl: 2m
+    challenge-rate-limit-window: 1m
+    challenge-rate-limit-requests: 5
     response-max-age: 2m
+    verify-rate-limit-window: 1m
+    verify-rate-limit-requests: 10
     max-verify-attempts: 5
+    max-active-devices-per-user: 5
+    max-pending-devices-per-user: 2
+    allow-duplicate-device-labels: false
+    auth-session-retention: 7d
+    auth-session-cleanup-interval: 15m
+    enrollment-token-ttl: 10m
+    device-response-token-ttl: 2m
+    debug-ui-enabled: false
+    demo-ui-enabled: false
     master-key-base64: ${AUTH_FACTOR_MASTER_KEY_BASE64:REPLACE_WITH_32_BYTE_BASE64_KEY}
+    api-key-header-name: X-Auth-Factor-Api-Key
+    api-key: ${AUTH_FACTOR_API_KEY:REPLACE_WITH_API_KEY}

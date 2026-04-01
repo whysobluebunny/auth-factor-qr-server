@@ -10,4 +10,5 @@ open class ApiException(
 class NotFoundException(message: String) : ApiException(message, HttpStatus.NOT_FOUND)
 class BadRequestException(message: String) : ApiException(message, HttpStatus.BAD_REQUEST)
 class ConflictException(message: String) : ApiException(message, HttpStatus.CONFLICT)
+class TooManyRequestsException(message: String) : ApiException(message, HttpStatus.TOO_MANY_REQUESTS)
 class InternalConfigurationException(message: String) : ApiException(message, HttpStatus.INTERNAL_SERVER_ERROR)

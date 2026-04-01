@@ -1,17 +1,24 @@
 package ru.mephi.abondarenko.auth.factor.qr.service
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.json.JsonMapper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentResponse
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceEnrollmentConfirmRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceInfoResponse
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.DeviceRevokeRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.EnrollmentQrPayload
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.RevokeDeviceRequest
+import ru.mephi.abondarenko.auth.factor.qr.api.dto.RevokeDeviceResponse
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.StartEnrollmentResponse
 import ru.mephi.abondarenko.auth.factor.qr.api.error.BadRequestException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.ConflictException
 import ru.mephi.abondarenko.auth.factor.qr.api.error.NotFoundException
 import ru.mephi.abondarenko.auth.factor.qr.config.AuthFactorProperties
+import ru.mephi.abondarenko.auth.factor.qr.domain.AuditEventType
+import ru.mephi.abondarenko.auth.factor.qr.domain.AuditOutcome
 import ru.mephi.abondarenko.auth.factor.qr.domain.DeviceStatus
 import ru.mephi.abondarenko.auth.factor.qr.domain.TotpAlgorithm
 import ru.mephi.abondarenko.auth.factor.qr.entity.RegisteredDevice
@@ -21,24 +28,108 @@ import ru.mephi.abondarenko.auth.factor.qr.service.crypto.SecretCryptoService
 import ru.mephi.abondarenko.auth.factor.qr.service.totp.TotpService
 import java.time.Clock
 import java.time.Instant
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.util.UUID
 
 @Service
 class EnrollmentService(
+    private val auditLogService: AuditLogService,
+    private val deviceManagementPolicyService: DeviceManagementPolicyService,
     private val userService: UserService,
     private val registeredDeviceRepository: RegisteredDeviceRepository,
     private val secretCryptoService: SecretCryptoService,
     private val randomTokenService: RandomTokenService,
     private val totpService: TotpService,
-    private val objectMapper: ObjectMapper,
+    private val objectMapper: JsonMapper,
     private val properties: AuthFactorProperties,
     private val clock: Clock
 ) {
 
     @Transactional
+    fun startOrResumeHostedEnrollment(externalUserId: String, displayName: String?): StartEnrollmentResponse {
+        val user = userService.getOrCreate(externalUserId, displayName)
+        val existingDevices = registeredDeviceRepository.findAllByUserExternalUserIdOrderByCreatedAtDesc(user.externalUserId)
+        val pendingDevice = existingDevices.firstOrNull { it.status == DeviceStatus.PENDING }
+
+        if (pendingDevice != null) {
+            val enrollmentToken = randomTokenService.randomUrlSafeToken()
+            val now = Instant.now(clock)
+            pendingDevice.enrollmentTokenHash = sha256(enrollmentToken)
+            pendingDevice.enrollmentTokenExpiresAt = now.plus(properties.enrollmentTokenTtl)
+
+            auditLogService.logEvent(
+                eventType = AuditEventType.ENROLLMENT_STARTED,
+                outcome = AuditOutcome.SUCCESS,
+                externalUserId = user.externalUserId,
+                deviceId = pendingDevice.id,
+                details = "Existing pending enrollment resumed"
+            )
+
+            return buildStartEnrollmentResponse(
+                userId = user.id,
+                externalUserId = user.externalUserId,
+                device = pendingDevice,
+                secret = secretCryptoService.decrypt(pendingDevice.secretCiphertext, pendingDevice.secretNonce),
+                enrollmentToken = enrollmentToken
+            )
+        }
+
+        return startEnrollment(
+            StartEnrollmentRequest(
+                externalUserId = externalUserId,
+                displayName = displayName,
+                deviceLabel = "pending-device-${UUID.randomUUID().toString().take(8)}"
+            )
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun listDevices(externalUserId: String): List<DeviceInfoResponse> {
+        userService.getByExternalUserId(externalUserId)
+
+        return registeredDeviceRepository.findAllByUserExternalUserIdOrderByCreatedAtDesc(externalUserId)
+            .map { device ->
+                DeviceInfoResponse(
+                    deviceId = device.id,
+                    deviceLabel = device.deviceLabel,
+                    serviceId = device.serviceId,
+                    deviceStatus = device.status,
+                    createdAt = device.createdAt,
+                    confirmedAt = device.confirmedAt,
+                    revokedAt = device.revokedAt,
+                    lastUsedAt = device.lastUsedAt
+                )
+            }
+    }
+
+    @Transactional(readOnly = true)
+    fun getDeviceInfo(deviceId: UUID): DeviceInfoResponse {
+        val device = registeredDeviceRepository.findById(deviceId)
+            .orElseThrow { NotFoundException("Device $deviceId not found") }
+
+        return DeviceInfoResponse(
+            deviceId = device.id,
+            deviceLabel = device.deviceLabel,
+            serviceId = device.serviceId,
+            deviceStatus = device.status,
+            createdAt = device.createdAt,
+            confirmedAt = device.confirmedAt,
+            revokedAt = device.revokedAt,
+            lastUsedAt = device.lastUsedAt
+        )
+    }
+
+    @Transactional
     fun startEnrollment(request: StartEnrollmentRequest): StartEnrollmentResponse {
         val user = userService.getOrCreate(request.externalUserId, request.displayName)
+        val existingDevices = registeredDeviceRepository.findAllByUserExternalUserIdOrderByCreatedAtDesc(user.externalUserId)
+        deviceManagementPolicyService.enforceEnrollmentPolicy(user, request.deviceLabel, existingDevices)
+
         val secret = randomTokenService.randomBase32Secret()
         val encryptedSecret = secretCryptoService.encrypt(secret)
+        val enrollmentToken = randomTokenService.randomUrlSafeToken()
+        val now = Instant.now(clock)
 
         val device = registeredDeviceRepository.save(
             RegisteredDevice(
@@ -50,26 +141,38 @@ class EnrollmentService(
                 secretNonce = encryptedSecret.nonce,
                 algorithm = TotpAlgorithm.SHA1,
                 digits = properties.otpDigits,
-                periodSeconds = properties.otpPeriod.seconds.toInt()
+                periodSeconds = properties.otpPeriod.seconds.toInt(),
+                enrollmentTokenHash = sha256(enrollmentToken),
+                enrollmentTokenExpiresAt = now.plus(properties.enrollmentTokenTtl)
             )
         )
 
         val qrPayload = EnrollmentQrPayload(
             serviceId = properties.serviceId,
+            baseUrl = properties.publicBaseUrl,
             userId = user.externalUserId,
             deviceId = device.id.toString(),
             secret = secret,
+            enrollmentToken = enrollmentToken,
             period = device.periodSeconds,
             digits = device.digits,
             algorithm = device.algorithm.name
         )
 
-        return StartEnrollmentResponse(
-            userId = user.id,
+        auditLogService.logEvent(
+            eventType = AuditEventType.ENROLLMENT_STARTED,
+            outcome = AuditOutcome.SUCCESS,
+            externalUserId = user.externalUserId,
             deviceId = device.id,
-            deviceStatus = device.status,
-            qrPayload = qrPayload,
-            qrPayloadRaw = objectMapper.writeValueAsString(qrPayload)
+            details = "Enrollment started for deviceLabel=${device.deviceLabel}"
+        )
+
+        return buildStartEnrollmentResponse(
+            userId = user.id,
+            externalUserId = user.externalUserId,
+            device = device,
+            secret = secret,
+            enrollmentToken = enrollmentToken
         )
     }
 
@@ -77,6 +180,83 @@ class EnrollmentService(
     fun confirmEnrollment(request: ConfirmEnrollmentRequest): ConfirmEnrollmentResponse {
         val device = registeredDeviceRepository.findById(request.deviceId)
             .orElseThrow { NotFoundException("Device ${request.deviceId} not found") }
+        return confirmEnrollmentInternal(device, request.totpCode, requireDeviceToken = false, suppliedToken = null)
+    }
+
+    @Transactional
+    fun confirmEnrollmentFromDevice(request: DeviceEnrollmentConfirmRequest): ConfirmEnrollmentResponse {
+        val device = registeredDeviceRepository.findByIdAndEnrollmentTokenHash(request.deviceId, sha256(request.enrollmentToken))
+            ?: run {
+                auditLogService.logEvent(
+                    eventType = AuditEventType.ENROLLMENT_DEVICE_TOKEN_REJECTED,
+                    outcome = AuditOutcome.FAILURE,
+                    deviceId = request.deviceId,
+                    details = "Enrollment confirmation rejected due to invalid device token"
+                )
+                throw NotFoundException("Enrollment confirmation context not found")
+            }
+
+        val existingDevices = registeredDeviceRepository.findAllByUserExternalUserIdOrderByCreatedAtDesc(device.user.externalUserId)
+        deviceManagementPolicyService.enforceDeviceLabelPolicy(
+            user = device.user,
+            deviceLabel = request.deviceLabel,
+            existingDevices = existingDevices,
+            excludeDeviceId = device.id
+        )
+
+        return confirmEnrollmentInternal(
+            device = device,
+            totpCode = request.totpCode,
+            requireDeviceToken = true,
+            suppliedToken = request.enrollmentToken,
+            deviceLabel = request.deviceLabel
+        )
+    }
+
+    private fun confirmEnrollmentInternal(
+        device: RegisteredDevice,
+        totpCode: String,
+        requireDeviceToken: Boolean,
+        suppliedToken: String?,
+        deviceLabel: String? = null
+    ): ConfirmEnrollmentResponse {
+        val now = Instant.now(clock)
+
+        if (requireDeviceToken) {
+            val tokenHash = device.enrollmentTokenHash
+            val tokenExpiresAt = device.enrollmentTokenExpiresAt
+
+            if (tokenHash == null || tokenExpiresAt == null) {
+                auditLogService.logEvent(
+                    eventType = AuditEventType.ENROLLMENT_DEVICE_TOKEN_REJECTED,
+                    outcome = AuditOutcome.FAILURE,
+                    externalUserId = device.user.externalUserId,
+                    deviceId = device.id,
+                    details = "Enrollment confirmation token context is missing"
+                )
+                throw ConflictException("Enrollment confirmation token is not available")
+            }
+            if (now.isAfter(tokenExpiresAt)) {
+                auditLogService.logEvent(
+                    eventType = AuditEventType.ENROLLMENT_DEVICE_TOKEN_REJECTED,
+                    outcome = AuditOutcome.FAILURE,
+                    externalUserId = device.user.externalUserId,
+                    deviceId = device.id,
+                    details = "Enrollment confirmation token expired"
+                )
+                throw ConflictException("Enrollment confirmation token expired")
+            }
+            if (suppliedToken == null || !constantTimeEquals(tokenHash, sha256(suppliedToken))) {
+                auditLogService.logEvent(
+                    eventType = AuditEventType.ENROLLMENT_DEVICE_TOKEN_REJECTED,
+                    outcome = AuditOutcome.FAILURE,
+                    externalUserId = device.user.externalUserId,
+                    deviceId = device.id,
+                    details = "Enrollment confirmation token mismatch"
+                )
+                throw NotFoundException("Enrollment confirmation context not found")
+            }
+        }
 
         when (device.status) {
             DeviceStatus.ACTIVE -> {
@@ -88,6 +268,114 @@ class EnrollmentService(
             }
             DeviceStatus.REVOKED -> throw ConflictException("Device ${device.id} is revoked")
             DeviceStatus.PENDING -> Unit
+        }
+
+        val secret = secretCryptoService.decrypt(device.secretCiphertext, device.secretNonce)
+
+        val valid = totpService.verify(
+            secretBase32 = secret,
+            code = totpCode,
+            timestamp = now,
+            digits = device.digits,
+            periodSeconds = device.periodSeconds,
+            algorithm = device.algorithm,
+            allowedClockSkewSteps = properties.allowedClockSkewSteps
+        )
+
+        if (!valid) {
+            auditLogService.logEvent(
+                eventType = AuditEventType.ENROLLMENT_CONFIRM_FAILED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = device.user.externalUserId,
+                deviceId = device.id,
+                details = "Invalid TOTP code supplied during enrollment confirmation"
+            )
+            throw BadRequestException("Provided TOTP code is invalid")
+        }
+
+        if (!deviceLabel.isNullOrBlank()) {
+            device.deviceLabel = deviceLabel
+        }
+        device.status = DeviceStatus.ACTIVE
+        device.confirmedAt = now
+        device.enrollmentTokenHash = null
+        device.enrollmentTokenExpiresAt = null
+
+        auditLogService.logEvent(
+            eventType = AuditEventType.ENROLLMENT_CONFIRMED,
+            outcome = AuditOutcome.SUCCESS,
+            externalUserId = device.user.externalUserId,
+            deviceId = device.id,
+            details = "Device enrollment confirmed"
+        )
+
+        return ConfirmEnrollmentResponse(
+            deviceId = device.id,
+            deviceStatus = device.status,
+            confirmedAt = device.confirmedAt!!
+        )
+    }
+
+    private fun sha256(value: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(StandardCharsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun constantTimeEquals(expectedHash: String, actualHash: String): Boolean {
+        return MessageDigest.isEqual(
+            expectedHash.toByteArray(StandardCharsets.UTF_8),
+            actualHash.toByteArray(StandardCharsets.UTF_8)
+        )
+    }
+
+    private fun buildStartEnrollmentResponse(
+        userId: UUID,
+        externalUserId: String,
+        device: RegisteredDevice,
+        secret: String,
+        enrollmentToken: String
+    ): StartEnrollmentResponse {
+        val qrPayload = EnrollmentQrPayload(
+            serviceId = properties.serviceId,
+            baseUrl = properties.publicBaseUrl,
+            userId = externalUserId,
+            deviceId = device.id.toString(),
+            secret = secret,
+            enrollmentToken = enrollmentToken,
+            period = device.periodSeconds,
+            digits = device.digits,
+            algorithm = device.algorithm.name
+        )
+
+        return StartEnrollmentResponse(
+            userId = userId,
+            deviceId = device.id,
+            deviceStatus = device.status,
+            qrPayload = qrPayload,
+            qrPayloadRaw = objectMapper.writeValueAsString(qrPayload)
+        )
+    }
+
+    @Transactional
+    fun revokeDevice(deviceId: UUID, request: RevokeDeviceRequest): RevokeDeviceResponse {
+        val device = registeredDeviceRepository.findByIdAndUserExternalUserId(deviceId, request.externalUserId)
+            ?: throw NotFoundException("Device $deviceId not found for user ${request.externalUserId}")
+
+        return revokeDeviceInternal(device, request.externalUserId)
+    }
+
+    @Transactional
+    fun revokeDeviceFromDevice(deviceId: UUID, request: DeviceRevokeRequest): RevokeDeviceResponse {
+        val device = registeredDeviceRepository.findById(deviceId)
+            .orElseThrow { NotFoundException("Device $deviceId not found") }
+
+        if (device.status == DeviceStatus.REVOKED) {
+            return RevokeDeviceResponse(
+                deviceId = device.id,
+                deviceStatus = device.status,
+                revokedAt = device.revokedAt ?: Instant.now(clock)
+            )
         }
 
         val secret = secretCryptoService.decrypt(device.secretCiphertext, device.secretNonce)
@@ -104,16 +392,49 @@ class EnrollmentService(
         )
 
         if (!valid) {
+            auditLogService.logEvent(
+                eventType = AuditEventType.DEVICE_REVOKED,
+                outcome = AuditOutcome.FAILURE,
+                externalUserId = device.user.externalUserId,
+                deviceId = device.id,
+                details = "Device self-revoke rejected due to invalid TOTP code"
+            )
             throw BadRequestException("Provided TOTP code is invalid")
         }
 
-        device.status = DeviceStatus.ACTIVE
-        device.confirmedAt = now
+        return revokeDeviceInternal(device, device.user.externalUserId, initiatedByDevice = true)
+    }
 
-        return ConfirmEnrollmentResponse(
+    private fun revokeDeviceInternal(
+        device: RegisteredDevice,
+        externalUserId: String,
+        initiatedByDevice: Boolean = false
+    ): RevokeDeviceResponse {
+        if (device.status == DeviceStatus.REVOKED) {
+            return RevokeDeviceResponse(
+                deviceId = device.id,
+                deviceStatus = device.status,
+                revokedAt = device.revokedAt ?: Instant.now(clock)
+            )
+        }
+
+        device.status = DeviceStatus.REVOKED
+        device.revokedAt = Instant.now(clock)
+        device.enrollmentTokenHash = null
+        device.enrollmentTokenExpiresAt = null
+
+        auditLogService.logEvent(
+            eventType = AuditEventType.DEVICE_REVOKED,
+            outcome = AuditOutcome.SUCCESS,
+            externalUserId = externalUserId,
+            deviceId = device.id,
+            details = if (initiatedByDevice) "Device self-revoked" else "Device revoked"
+        )
+
+        return RevokeDeviceResponse(
             deviceId = device.id,
             deviceStatus = device.status,
-            confirmedAt = device.confirmedAt!!
+            revokedAt = device.revokedAt!!
         )
     }
 }

@@ -24,9 +24,9 @@ class AuthSession(
     @JoinColumn(name = "user_id", nullable = false)
     var user: AppUser,
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "device_id", nullable = false)
-    var device: RegisteredDevice,
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "device_id")
+    var device: RegisteredDevice? = null,
 
     @Column(name = "challenge", nullable = false, unique = true, length = 128)
     var challenge: String,
@@ -54,5 +54,14 @@ class AuthSession(
     var maxAttempts: Int = 5,
 
     @Column(name = "accepted_response_hash", length = 64)
-    var acceptedResponseHash: String? = null
+    var acceptedResponseHash: String? = null,
+
+    @Column(name = "device_response_token", length = 255)
+    var deviceResponseToken: String? = null,
+
+    @Column(name = "device_response_token_hash", length = 64)
+    var deviceResponseTokenHash: String? = null,
+
+    @Column(name = "device_response_token_expires_at")
+    var deviceResponseTokenExpiresAt: Instant? = null
 )

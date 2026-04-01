@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demo Home | Auth Factor QR</title>
+    <link rel="stylesheet" th:href="@{/ui/app.css}">
+    <link rel="stylesheet" th:href="@{/ui/demo.css}">
+</head>
+<body class="demo-app">
+<main class="page">
+    <section class="hero-grid">
+        <div class="panel">
+            <div class="eyebrow">Demo Relying Party</div>
+            <h1>Signed In</h1>
+            <p class="lead" th:if="${home.secondFactorConfigured}">
+                The account already has a linked device, so the demo app can require the hosted QR-based second factor
+                during sign-in.
+            </p>
+            <p class="lead" th:unless="${home.secondFactorConfigured}">
+                First-factor login is complete. The next recommended step is to link a device so future sign-ins use
+                the hosted second-factor flow as well.
+            </p>
+
+            <div class="status-banner approved">
+                Logged in as <strong th:text="${home.username}">demo-user</strong>
+            </div>
+
+            <div class="message success" th:if="${deviceActionMessage != null}" th:text="${deviceActionMessage}">
+                Device action completed.
+            </div>
+
+            <div class="action-row">
+                <form class="js-single-submit" th:if="${!home.secondFactorConfigured && home.enrollmentUrl != null}" method="post" th:action="@{/ui/enrollments}">
+                    <input type="hidden" name="externalUserId" th:value="${home.username}">
+                    <input type="hidden" name="displayName" th:value="${home.username}">
+                    <input type="hidden" name="returnUrl" value="/demo/home">
+                    <button class="button primary" type="submit">Register Device For Second Factor</button>
+                </form>
+
+                <form class="js-single-submit" th:if="${home.secondFactorConfigured && home.enrollmentUrl != null}" method="post" th:action="@{/ui/enrollments}">
+                    <input type="hidden" name="externalUserId" th:value="${home.username}">
+                    <input type="hidden" name="displayName" th:value="${home.username}">
+                    <input type="hidden" name="returnUrl" value="/demo/home">
+                    <button class="button primary" type="submit">Add New Device</button>
+                </form>
+
+                <form method="post" th:action="@{/demo/logout}">
+                    <button class="button ghost" type="submit">Logout</button>
+                </form>
+            </div>
+        </div>
+
+        <aside class="stack">
+            <section class="callout" th:unless="${home.secondFactorConfigured}">
+                <div class="eyebrow">Security Setup</div>
+                <h3>Second Factor Not Configured</h3>
+                <p>No device is linked to this account yet. Start enrollment to open the hosted registration page and
+                    display the QR code for the mobile device.</p>
+            </section>
+
+            <section class="callout" th:if="${home.secondFactorConfigured}">
+                <div class="eyebrow">Security Setup</div>
+                <h3>Second Factor Ready</h3>
+                <p>The account is already protected by a registered device. A new login will redirect into the hosted
+                    QR challenge flow after the first factor.</p>
+            </section>
+        </aside>
+    </section>
+
+    <section class="panel" th:unless="${home.secondFactorConfigured}">
+        <div class="eyebrow">Next Step</div>
+        <h2>How Enrollment Works</h2>
+        <ul class="checklist">
+            <li>The relying application creates an enrollment context for the current user.</li>
+            <li>The hosted second-factor service displays the enrollment QR.</li>
+            <li>The device scans the QR, chooses its device name, and confirms enrollment.</li>
+            <li>After that, future sign-ins can require the QR-based second factor.</li>
+        </ul>
+    </section>
+
+    <section class="panel" th:if="${!home.devices.isEmpty()}">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">User Devices</div>
+                <h2>Registered Second-Factor Devices</h2>
+            </div>
+        </div>
+
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Device</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Last Used</th>
+                <th>Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="device : ${home.devices}">
+                <td th:text="${device.deviceLabel}">Pixel 8</td>
+                <td th:text="${device.deviceStatus}">ACTIVE</td>
+                <td th:text="${#temporals.format(device.createdAt, 'yyyy-MM-dd HH:mm:ss')}">2026-03-26 18:00:00</td>
+                <td th:text="${device.lastUsedAt != null ? #temporals.format(device.lastUsedAt, 'yyyy-MM-dd HH:mm:ss') : 'Never'}">Never</td>
+                <td>
+                    <form method="post" th:action="@{|/demo/devices/${device.deviceId}/revoke|}">
+                        <button class="button ghost" type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+<script>
+    (() => {
+        document.querySelectorAll('form.js-single-submit').forEach((form) => {
+            form.addEventListener('submit', () => {
+                const submit = form.querySelector('button[type="submit"]');
+                if (submit) {
+                    submit.disabled = true;
+                }
+            }, { once: true });
+        });
+    })();
+</script>
+</body>
+</html>
