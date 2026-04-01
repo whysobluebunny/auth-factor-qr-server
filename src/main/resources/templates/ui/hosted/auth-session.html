@@ -72,7 +72,7 @@
                           placeholder='{"type":"response","session_id":"...","challenge":"...","totp":"123456","timestamp":1774356605,"device_id":"..."}'></textarea>
             </label>
             <textarea th:unless="${uiDebugEnabled}" class="visually-hidden" th:field="*{responsePayloadRaw}" aria-hidden="true"></textarea>
-            <button class="button primary full-width debug-only" type="submit" id="scanner-submit" th:attr="data-debug=${uiDebugEnabled}">
+            <button th:if="${uiDebugEnabled}" class="button primary full-width debug-only" type="submit" id="scanner-submit" th:attr="data-debug=${uiDebugEnabled}">
                 <span>Verify Response</span>
             </button>
         </form>
