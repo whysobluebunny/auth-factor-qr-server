@@ -130,10 +130,6 @@
             Technical payload details are hidden outside debug mode. The normal confirmation flow is challenge QR on
             the device followed by response QR scanning in the browser.
         </div>
-        <div class="message info" th:unless="${uiDebugEnabled}">
-            Technical payload details are hidden outside debug mode. The normal confirmation flow is challenge QR on
-            the device followed by response QR scanning in the browser.
-        </div>
 
         <div class="message info debug-only"
              th:if="${uiDebugEnabled and authSessionView.returnUrl != null and authSessionView.status.name() == 'APPROVED'}">

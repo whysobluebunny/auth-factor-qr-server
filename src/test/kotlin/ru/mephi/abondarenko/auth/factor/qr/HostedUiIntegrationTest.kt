@@ -1,5 +1,8 @@
 package ru.mephi.abondarenko.auth.factor.qr
 
+import org.assertj.core.api.Assertions
+import org.hamcrest.Matchers.containsString
+import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -7,9 +10,7 @@ import org.springframework.mock.web.MockHttpSession
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ChallengeQrPayload
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.ConfirmEnrollmentRequest
 import ru.mephi.abondarenko.auth.factor.qr.api.dto.CreateChallengeRequest
@@ -48,7 +49,7 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
     fun `should render hosted enrollment page and enrollment result`() {
         mockMvc.perform(get("/ui/enrollments"))
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Device Enrollment")))
+            .andExpect(content().string(containsString("Device Enrollment")))
 
         mockMvc.perform(
             post("/ui/enrollments")
@@ -56,9 +57,9 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
                 .param("displayName", "UI User")
         )
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Enrollment Session")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("ui-user-001")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("data:image/png;base64")))
+            .andExpect(content().string(containsString("Enrollment Session")))
+            .andExpect(content().string(containsString("ui-user-001")))
+            .andExpect(content().string(containsString("data:image/png;base64")))
     }
 
     @Test
@@ -73,7 +74,7 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
 
         mockMvc.perform(get("/ui/enrollments/${enrollment.deviceId}/status"))
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("PENDING")))
+            .andExpect(content().string(containsString("PENDING")))
 
         val enrollmentCode = totpService.generate(
             secretBase32 = enrollment.qrPayload.secret,
@@ -92,7 +93,7 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
 
         mockMvc.perform(get("/ui/enrollments/${enrollment.deviceId}/status"))
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("ACTIVE")))
+            .andExpect(content().string(containsString("ACTIVE")))
     }
 
     @Test
@@ -149,8 +150,8 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
 
         mockMvc.perform(get("/ui/auth/sessions/${challenge.sessionId}"))
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Authentication Session")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString(challenge.sessionId.toString())))
+            .andExpect(content().string(containsString("Authentication Session")))
+            .andExpect(content().string(containsString(challenge.sessionId.toString())))
 
         mockMvc.perform(
             post("/ui/auth/sessions/${challenge.sessionId}/verify")
@@ -159,14 +160,14 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
         )
             .andExpect(status().is3xxRedirection)
             .andExpect(
-                org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl(
+                redirectedUrl(
                     "https://demo-app/callback?sessionId=${challenge.sessionId}"
                 )
             )
 
         mockMvc.perform(get("/ui/auth/sessions/${challenge.sessionId}"))
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("APPROVED")))
+            .andExpect(content().string(containsString("APPROVED")))
     }
 
     @Test
@@ -181,16 +182,16 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
 
         val redirectUrl = loginResult.response.redirectedUrl!!
         val demoSession = loginResult.request.session as MockHttpSession
-        org.assertj.core.api.Assertions.assertThat(redirectUrl).isEqualTo("/demo/home")
+        Assertions.assertThat(redirectUrl).isEqualTo("/demo/home")
 
         mockMvc.perform(
             get("/demo/home")
                 .session(demoSession)
         )
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Signed In")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("demo-user")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Register Device For Second Factor")))
+            .andExpect(content().string(containsString("Signed In")))
+            .andExpect(content().string(containsString("demo-user")))
+            .andExpect(content().string(containsString("Register Device For Second Factor")))
     }
 
     @Test
@@ -228,8 +229,8 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
 
         val redirectUrl = loginResult.response.redirectedUrl!!
         val demoSession = loginResult.request.session as MockHttpSession
-        org.assertj.core.api.Assertions.assertThat(redirectUrl).startsWith("/ui/auth/sessions/")
-        org.assertj.core.api.Assertions.assertThat(redirectUrl).contains("returnUrl=/demo/callback")
+        Assertions.assertThat(redirectUrl).startsWith("/ui/auth/sessions/")
+        Assertions.assertThat(redirectUrl).contains("returnUrl=/demo/callback")
         val sessionId = UUID.fromString(redirectUrl.substringAfter("/ui/auth/sessions/").substringBefore("?"))
         val challengePayload = objectMapper.readValue(
             authSessionService.getChallengePayloadRaw(sessionId),
@@ -263,7 +264,7 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
                 .param("returnUrl", "/demo/callback")
         )
             .andExpect(status().is3xxRedirection)
-            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/demo/callback?sessionId=$sessionId"))
+            .andExpect(redirectedUrl("/demo/callback?sessionId=$sessionId"))
 
         mockMvc.perform(
             get("/demo/callback")
@@ -271,14 +272,14 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
                 .param("sessionId", sessionId.toString())
         )
             .andExpect(status().is3xxRedirection)
-            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/demo/home"))
+            .andExpect(redirectedUrl("/demo/home"))
 
         mockMvc.perform(
             get("/demo/home")
                 .session(demoSession)
         )
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("demo-user")))
+            .andExpect(content().string(containsString("demo-user")))
     }
 
     @Test
@@ -289,7 +290,7 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
                 .param("password", "password")
         )
             .andExpect(status().is3xxRedirection)
-            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/demo/home"))
+            .andExpect(redirectedUrl("/demo/home"))
             .andReturn()
 
         val demoSession = loginResult.request.session as MockHttpSession
@@ -322,11 +323,11 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
                 .session(demoSession)
         )
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Second Factor Ready")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Registered Second-Factor Devices")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Alice Phone")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("ACTIVE")))
-            .andExpect(content().string(org.hamcrest.Matchers.containsString("Add New Device")))
+            .andExpect(content().string(containsString("Second Factor Ready")))
+            .andExpect(content().string(containsString("Registered Second-Factor Devices")))
+            .andExpect(content().string(containsString("Alice Phone")))
+            .andExpect(content().string(containsString("ACTIVE")))
+            .andExpect(content().string(containsString("Add New Device")))
     }
 
     @Test
@@ -362,6 +363,6 @@ class HostedUiIntegrationTest : AbstractIntegrationTest() {
                 .session(demoSession)
         )
             .andExpect(status().isOk)
-            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Pending Device"))))
+            .andExpect(content().string(not(containsString("Pending Device"))))
     }
 }
